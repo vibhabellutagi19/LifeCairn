@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# The Roadmap
 
-## Getting Started
+A local-first tracker for your Oct–Dec 2026 roadmap: Career, Money, Health, and Relationship. Neo-brutalist, warm & bold — built with Next.js, Tailwind, Drizzle ORM, and Postgres.
 
-First, run the development server:
+## What's inside
+
+- **Dashboard** — today's tasks, journal status, affirmation check-in, roadmap progress, finance snapshot.
+- **Roadmaps** — generic: add any roadmap (Career/Money/Health/Relationship are pre-seeded from your plan), each with milestones you can cycle through Not Started → In Progress → Done.
+- **Projects** — freelance/client work as Goal → Project → Release → Task: projects optionally link to a roadmap as their "Goal" (e.g. Move & NimmaVasti → Career). A project's overview page (`/projects/:id`) shows stat tiles (releases, tasks, completed, due this week/month) plus previews linking to dedicated pages: `/projects/:id/releases` (list) and `/projects/:id/releases/:releaseId` (detail — editable start/target date, notes, release URL, plus every task tagged to it), and `/projects/:id/tasks` (list, grouped by status with Done/Blocked collapsed) and `/projects/:id/tasks/:ref` (detail — editable title, priority, status, release, start/due dates, est. hours, notes). A task's URL uses its feature branch name when you set one (e.g. `/projects/1/tasks/feature/discounts-payments`), falling back to its numeric id otherwise. A "Focus Next" view auto-ranks open tasks across all projects (in-progress first, then priority, then nearest due date) — shown on the Projects page and the Dashboard. A project task also surfaces on the Dashboard's Today's Tasks card whenever today falls inside its start/due window.
+- **Daily Tasks** — plan tasks per day, optionally tag them to a roadmap, navigate day by day.
+- **Habit Tracker** — a monthly calendar grid: habits as rows, days as columns. Click any past day to backfill a missed check-in (future days are locked); today's column is highlighted. Streak (consecutive days, with a same-day grace period) and score (lifetime completions, never decreases) are derived live from your check-in history, never stored. Click a habit's title to rename it or change its target in place without losing its streak — for a habit that evolves (e.g. 30min walk → 45min walk), edit it rather than starting a new one. Habits can also get an optional end date for ones that genuinely finish (vs. the pause/resume toggle, for ones you might pick back up). A compact "Habits" card on the Dashboard lets you check today's habits without leaving the home page.
+- **Affirmations** — a categorized library (pre-seeded with your money/health affirmations) plus a 3x-daily check-in (morning/afternoon/evening), with the same streak/score mechanics as the Habit Tracker.
+- **Journal** — one entry per day: free text, gratitude, mood.
+- **Finance** — accounts (FDs, mutual funds, etc.), an income/expense log, net worth, and a monthly income target with progress.
+- **Review** — week/month rollups: task completion %, journal streak, affirmation streak, net cash flow, milestones due in the period.
+
+## First-time setup
+
+Requires Node.js and Docker Desktop (for local Postgres).
 
 ```bash
+npm install
+npm run docker:up      # starts Postgres in Docker (localhost:5432)
+npm run db:push        # creates the schema
+npm run db:seed        # loads your Career/Money/Health/Relationship roadmap + affirmations + accounts (skips if data already exists)
+npm run db:seed-projects  # imports Move & NimmaVasti (projects/releases/tasks) from your spreadsheet (skips if data already exists)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open http://localhost:6001.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Day to day
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run docker:up   # if the Postgres container isn't running
+npm run dev
+```
 
-## Learn More
+Stop Postgres when you're done: `npm run docker:down` (your data persists in a Docker volume between restarts).
 
-To learn more about Next.js, take a look at the following resources:
+## Useful scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `npm run db:studio` — opens Drizzle Studio, a GUI for browsing/editing the database directly.
+- `npm run db:push` — re-syncs the database schema after you edit `src/db/schema.ts`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Hosting it later
 
-## Deploy on Vercel
+The app is a standard Next.js + Postgres app, so it deploys cleanly to Railway (provision a Postgres instance there, set `DATABASE_URL`, deploy this repo). No code changes needed — just re-point the env var. Since there's no login yet, add authentication (or at minimum a password gate) before putting it anywhere public.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- All money values are stored and displayed in INR.
+- The database only lives in the Docker volume `roadmap_pgdata` — back it up (`pg_dump`) before doing anything destructive to Docker volumes.
