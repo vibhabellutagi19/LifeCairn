@@ -45,7 +45,7 @@ export function SavingRow({
             </p>
             <button
               type="button"
-              className="text-xs font-bold uppercase tracking-wide text-blue hover:underline"
+              className="inline-flex min-h-11 items-center justify-end text-xs font-bold uppercase tracking-wide text-blue hover:underline sm:min-h-0"
               onClick={() => {
                 setValue(balance);
                 setIsEditing((current) => !current);
@@ -58,7 +58,7 @@ export function SavingRow({
             type="button"
             aria-label={`Delete ${name}`}
             disabled={isPending}
-            className="mt-0.5 text-muted hover:text-pink disabled:opacity-50"
+            className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink disabled:opacity-50 sm:h-9 sm:w-9"
             onClick={() =>
               startTransition(() => {
                 deleteSaving(id);

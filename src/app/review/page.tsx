@@ -9,7 +9,7 @@ import {
   roadmaps,
   tasks,
 } from "@/db/schema";
-import { Badge, Button, Card, EmptyState, PageHeader, ProgressBar } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, ProgressBar } from "@/components/ui";
 import { formatDateShort, formatEUR } from "@/lib/format";
 import {
   currentMonthKey,
@@ -129,28 +129,38 @@ export default async function ReviewPage({
       <Card className="mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">
-            <Link href={`/review?period=week`}>
-              <Button variant={period === "week" ? "primary" : "ghost"} size="sm">
-                Week
-              </Button>
+            <Link
+              href="/review?period=week"
+              className={`brut-border brut-shadow-sm brut-press inline-flex min-h-11 items-center justify-center rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${period === "week" ? "bg-orange text-white" : "bg-surface hover:bg-yellow"}`}
+            >
+              Week
             </Link>
-            <Link href={`/review?period=month`}>
-              <Button variant={period === "month" ? "primary" : "ghost"} size="sm">
-                Month
-              </Button>
+            <Link
+              href="/review?period=month"
+              className={`brut-border brut-shadow-sm brut-press inline-flex min-h-11 items-center justify-center rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${period === "month" ? "bg-orange text-white" : "bg-surface hover:bg-yellow"}`}
+            >
+              Month
             </Link>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href={`/review?period=${period}&anchor=${prevAnchor}`}>
-              <Button variant="ghost" size="sm">&larr;</Button>
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+            <Link
+              href={`/review?period=${period}&anchor=${prevAnchor}`}
+              aria-label={`Previous ${period}`}
+              className="brut-border brut-shadow-sm brut-press flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface font-bold hover:bg-yellow"
+            >
+              &larr;
             </Link>
-            <span className="text-sm font-bold">
+            <span className="min-w-0 text-center text-sm font-bold">
               {period === "week"
                 ? `${formatDateShort(range.start)} – ${formatDateShort(range.end)}`
                 : range.start.slice(0, 7)}
             </span>
-            <Link href={`/review?period=${period}&anchor=${nextAnchor}`}>
-              <Button variant="ghost" size="sm">&rarr;</Button>
+            <Link
+              href={`/review?period=${period}&anchor=${nextAnchor}`}
+              aria-label={`Next ${period}`}
+              className="brut-border brut-shadow-sm brut-press flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface font-bold hover:bg-yellow"
+            >
+              &rarr;
             </Link>
           </div>
         </div>

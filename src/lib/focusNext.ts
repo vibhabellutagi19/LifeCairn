@@ -33,24 +33,24 @@ export function rankFocusTasks<T extends FocusTask>(tasks: T[]): T[] {
 }
 
 /**
- * A project task counts as "active today" if today falls inside its
+ * A project task counts as active if the selected date falls inside its
  * start/due window: within [startDate, dueDate] when both are set, from
  * startDate onward when open-ended, or from dueDate onward (i.e. due or
  * overdue) when only a due date was set. Tasks with neither date don't
  * show up here — they're still visible on the project page.
  */
-export function isActiveToday(
+export function isActiveOnDate(
   task: { startDate: string | null; dueDate: string | null; status: FocusTask["status"] },
-  today: string
+  date: string
 ) {
   const { startDate, dueDate, status } = task;
 
-  if (startDate && dueDate) return startDate <= today && today <= dueDate;
+  if (startDate && dueDate) return startDate <= date && date <= dueDate;
 
   // Open-ended tasks (only one date set) surface every day from that date
   // onward until they're marked done — once done, only their exact date
-  // still counts as "today", so a finished task doesn't linger forever.
-  if (startDate) return status === "done" ? startDate === today : startDate <= today;
-  if (dueDate) return status === "done" ? dueDate === today : dueDate <= today;
+  // still counts, so a finished task doesn't linger forever.
+  if (startDate) return status === "done" ? startDate === date : startDate <= date;
+  if (dueDate) return status === "done" ? dueDate === date : dueDate <= date;
   return false;
 }

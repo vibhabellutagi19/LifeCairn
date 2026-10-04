@@ -48,7 +48,7 @@ export function NewProjectTaskModal({
               type="button"
               aria-label="Close new project task modal"
               disabled={isPending}
-              className="text-xl font-bold text-muted hover:text-ink disabled:opacity-50"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-xl font-bold text-muted hover:text-ink disabled:opacity-50"
               onClick={close}
             >
               ✕
@@ -142,7 +142,7 @@ export function NewProjectTaskModal({
               </label>
               <Textarea id={`${titleId}-notes`} name="notes" rows={3} />
             </div>
-            <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
+            <div className="grid grid-cols-2 gap-2 pt-2 sm:col-span-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Cancel
               </Button>

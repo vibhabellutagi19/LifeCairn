@@ -18,7 +18,7 @@ type AffirmationItem = {
 
 const ALL = "__all__";
 const NO_SUBCATEGORY = "__none__";
-const SLIDE_INTERVAL_MS = 10_000;
+const SLIDE_INTERVAL_MS = 5_000;
 
 function subcategoryKey(item: AffirmationItem) {
   return item.subcategory || NO_SUBCATEGORY;
@@ -122,7 +122,7 @@ export function AffirmationWorkspace({
             {hasFilters ? (
               <button
                 type="button"
-                className="text-xs font-bold uppercase tracking-wide text-blue hover:underline"
+                className="min-h-11 px-2 text-xs font-bold uppercase tracking-wide text-blue hover:underline"
                 onClick={() => {
                   setCategory(ALL);
                   setSubcategory(ALL);
@@ -151,7 +151,7 @@ export function AffirmationWorkspace({
                     setActiveIndex(0);
                   }}
                   className={clsx(
-                    "brut-border rounded-full px-3 py-1.5 text-xs font-bold transition duration-200",
+                    "brut-border min-h-11 rounded-full px-3 py-1.5 text-xs font-bold transition duration-200 sm:min-h-0",
                     selected
                       ? "-translate-y-0.5 bg-orange text-white shadow-[2px_2px_0_0_var(--ink)]"
                       : "bg-surface text-ink hover:-translate-y-0.5 hover:bg-yellow"
@@ -180,7 +180,7 @@ export function AffirmationWorkspace({
                       setActiveIndex(0);
                     }}
                     className={clsx(
-                      "rounded-full border-2 border-ink px-3 py-1 text-xs font-bold transition duration-200",
+                      "min-h-11 rounded-full border-2 border-ink px-3 py-1 text-xs font-bold transition duration-200 sm:min-h-0",
                       selected ? "bg-yellow text-ink" : "bg-surface text-ink/70 hover:bg-yellow/50"
                     )}
                   >
@@ -251,7 +251,7 @@ export function AffirmationWorkspace({
                 {activeAffirmations.length < 2
                   ? "Only one affirmation in this view"
                   : slideshowRunning
-                    ? "Next affirmation in 10 seconds"
+                    ? "Next affirmation in 5 seconds"
                     : autoPlay
                       ? "Slideshow paused while you interact"
                       : "Slideshow paused"}
@@ -260,7 +260,7 @@ export function AffirmationWorkspace({
                 <button
                   type="button"
                   aria-pressed={!autoPlay}
-                  className="min-h-10 rounded-full bg-surface px-3 text-xs font-bold uppercase tracking-wide text-ink hover:bg-yellow"
+                  className="min-h-11 rounded-full bg-surface px-3 text-xs font-bold uppercase tracking-wide text-ink hover:bg-yellow"
                   onClick={() => setAutoPlay((playing) => !playing)}
                 >
                   {autoPlay ? "Pause" : "Play"}

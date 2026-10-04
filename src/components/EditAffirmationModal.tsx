@@ -43,7 +43,7 @@ export function EditAffirmationModal({
         size="sm"
         aria-label="Edit affirmation"
         title="Edit affirmation"
-        className="h-9 w-9 !p-0"
+        className="h-11 w-11 !p-0 sm:h-9 sm:w-9"
         onClick={() => dialogRef.current?.showModal()}
       >
         <svg
@@ -84,7 +84,7 @@ export function EditAffirmationModal({
               type="button"
               aria-label="Close edit affirmation modal"
               disabled={isPending}
-              className="text-xl font-bold text-muted hover:text-ink disabled:opacity-50"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-xl font-bold text-muted hover:text-ink disabled:opacity-50"
               onClick={close}
             >
               ✕
@@ -140,7 +140,7 @@ export function EditAffirmationModal({
                 </Select>
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Cancel
               </Button>

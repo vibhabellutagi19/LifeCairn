@@ -90,7 +90,7 @@ export function ProjectTaskRow({
                 setProjectTaskPriority(id, projectId, e.target.value as "low" | "medium" | "high");
               })
             }
-            className="brut-border min-h-10 min-w-0 flex-1 rounded-md bg-surface px-2 py-1 text-xs font-bold uppercase sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]"
+            className="brut-border min-h-11 min-w-0 flex-1 rounded-md bg-surface px-2 py-1 text-sm font-bold uppercase sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -111,7 +111,7 @@ export function ProjectTaskRow({
               })
             }
             className={clsx(
-              "brut-border min-h-10 min-w-0 flex-1 rounded-md px-2 py-1 text-xs font-bold uppercase sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]",
+              "brut-border min-h-11 min-w-0 flex-1 rounded-md px-2 py-1 text-sm font-bold uppercase sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]",
               STATUS_SELECT_COLOR[status]
             )}
           >
@@ -123,7 +123,7 @@ export function ProjectTaskRow({
           <button
             type="button"
             aria-label="Delete task"
-            className="flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-pink sm:h-auto sm:w-auto"
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-muted hover:text-pink sm:h-auto sm:w-auto"
             onClick={() =>
               startTransition(() => {
                 deleteProjectTask(id, projectId);
@@ -219,7 +219,7 @@ export function ProjectTaskRow({
         <button
           type="button"
           onClick={() => setEditingDates(true)}
-          className="mt-1 text-xs font-bold uppercase tracking-wide text-muted underline decoration-dashed underline-offset-2 hover:text-orange"
+          className="mt-1 min-h-11 text-left text-xs font-bold uppercase tracking-wide text-muted underline decoration-dashed underline-offset-2 hover:text-orange sm:min-h-0"
         >
           {startDate && dueDate
             ? `${formatDateShort(startDate)} → ${formatDateShort(dueDate)}`

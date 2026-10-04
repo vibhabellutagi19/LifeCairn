@@ -28,7 +28,7 @@ export function TaskRow({
           })
         }
         className={clsx(
-          "brut-border flex h-10 w-10 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
+          "brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
           completed ? "bg-green text-white" : "bg-surface"
         )}
       >
@@ -58,7 +58,7 @@ export function TaskRow({
             deleteTask(id);
           })
         }
-        className="flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-pink sm:h-auto sm:w-auto"
+        className="flex h-11 w-11 shrink-0 items-center justify-center text-muted hover:text-pink sm:h-auto sm:w-auto"
       >
         ✕
       </button>

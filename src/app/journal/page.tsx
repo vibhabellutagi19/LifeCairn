@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { journalEntries } from "@/db/schema";
-import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { JumpToDateForm } from "@/components/JumpToDateForm";
 import { todayISO } from "@/lib/dates";
 import { formatDateLong } from "@/lib/format";
@@ -30,8 +30,11 @@ export default async function JournalPage() {
         title="Journal"
         subtitle="A line a day keeps the fog away."
         action={
-          <Link href={`/journal/${todayISO()}`}>
-            <Button variant="primary">Write today&apos;s entry</Button>
+          <Link
+            href={`/journal/${todayISO()}`}
+            className="brut-border brut-shadow-sm brut-press inline-flex min-h-11 w-full items-center justify-center rounded-md bg-orange px-4 py-2 text-sm font-bold uppercase tracking-wide text-white sm:w-auto"
+          >
+            Write today&apos;s entry
           </Link>
         }
       />
@@ -60,4 +63,3 @@ export default async function JournalPage() {
     </div>
   );
 }
-

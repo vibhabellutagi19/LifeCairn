@@ -47,6 +47,11 @@ export const projectTaskStatus = pgEnum("project_task_status", [
 
 export const taskPriority = pgEnum("task_priority", ["low", "medium", "high"]);
 
+export const emotionCategory = pgEnum("emotion_category", [
+  "positive",
+  "negative",
+]);
+
 // A roadmap is a generic goal track (Career, Money, Health, Relationship, or
 // anything else the user adds). Each roadmap owns a list of milestones.
 export const roadmaps = pgTable("roadmaps", {
@@ -147,6 +152,42 @@ export const journalEntries = pgTable("journal_entries", {
   mood: varchar("mood", { length: 20 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// One quick emotional check-in per hour. Keeping this separate from the
+// journal's daily mood preserves the way feelings change throughout a day.
+export const emotionalCheckins = pgTable(
+  "emotional_checkins",
+  {
+    id: serial("id").primaryKey(),
+    date: date("date").notNull(),
+    hour: integer("hour").notNull(),
+    emotion: varchar("emotion", { length: 30 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.date, table.hour)]
+);
+
+// A reusable daily window controls which hourly check-ins make up the day.
+// This app currently has one local profile, keyed as "default".
+export const emotionalTrackingSettings = pgTable("emotional_tracking_settings", {
+  id: serial("id").primaryKey(),
+  profileKey: varchar("profile_key", { length: 50 }).notNull().default("default").unique(),
+  startHour: integer("start_hour").notNull().default(7),
+  endHour: integer("end_hour").notNull().default(22),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Personal additions to the built-in emotion palette.
+export const customEmotions = pgTable("custom_emotions", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 60 }).notNull().unique(),
+  emoji: varchar("emoji", { length: 20 }).notNull().default("◌"),
+  category: emotionCategory("category").notNull(),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Point-in-time savings (FD, mutual fund, emergency fund, etc.) with running balance.

@@ -51,7 +51,7 @@ export function FinanceEntryRow({
         type="button"
         aria-label="Delete entry"
         disabled={isPending}
-        className="col-start-3 row-start-1 flex h-10 w-10 shrink-0 items-center justify-center text-muted hover:text-pink sm:col-start-4 sm:h-auto sm:w-auto"
+        className="col-start-3 row-start-1 flex h-11 w-11 shrink-0 items-center justify-center text-muted hover:text-pink sm:col-start-4 sm:h-auto sm:w-auto"
         onClick={() =>
           startTransition(() => {
             deleteFinanceEntry(id);

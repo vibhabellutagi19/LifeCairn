@@ -47,10 +47,11 @@ export function MilestoneRow({
             </p>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
           <button
             type="button"
             disabled={isPending}
+            className="flex min-h-11 items-center"
             onClick={() =>
               startTransition(() => {
                 cycleMilestoneStatus(id, roadmapId, status);
@@ -62,7 +63,7 @@ export function MilestoneRow({
           <button
             type="button"
             aria-label="Delete milestone"
-            className="text-muted hover:text-pink"
+            className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink"
             onClick={() =>
               startTransition(() => {
                 deleteMilestone(id, roadmapId);

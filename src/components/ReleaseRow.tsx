@@ -187,6 +187,7 @@ export function ReleaseRow({
           <button
             type="button"
             disabled={isPending}
+            className="flex min-h-11 items-center"
             onClick={() =>
               startTransition(() => {
                 cycleReleaseStatus(id, projectId, status);
@@ -198,7 +199,7 @@ export function ReleaseRow({
           <button
             type="button"
             aria-label="Delete release"
-            className="ml-auto flex h-10 w-10 items-center justify-center text-muted hover:text-pink sm:ml-0 sm:h-auto sm:w-auto"
+            className="ml-auto flex h-11 w-11 items-center justify-center text-muted hover:text-pink sm:ml-0 sm:h-auto sm:w-auto"
             onClick={() =>
               startTransition(() => {
                 deleteRelease(id, projectId);

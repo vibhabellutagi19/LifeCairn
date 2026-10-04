@@ -109,7 +109,7 @@ textarea {
 }
 
 .affirmation-slideshow-progress {
-  animation: affirmation-slideshow-progress 10s linear both;
+  animation: affirmation-slideshow-progress 5s linear both;
 }
 
 @keyframes mobile-drawer-enter {
@@ -127,12 +127,220 @@ textarea {
   animation: mobile-drawer-enter 220ms ease-out both;
 }
 
+/* Dashboard home */
+@keyframes home-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes home-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0) rotate(5deg);
+  }
+}
+
+@keyframes home-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+@keyframes home-day-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.home-hero {
+  isolation: isolate;
+  border: 3px solid var(--ink);
+  box-shadow: 8px 8px 0 0 var(--ink);
+}
+
+.home-reveal {
+  animation: home-reveal 560ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.home-delay-1 {
+  animation-delay: 70ms;
+}
+
+.home-delay-2 {
+  animation-delay: 130ms;
+}
+
+.home-delay-3 {
+  animation-delay: 190ms;
+}
+
+.home-delay-4 {
+  animation-delay: 250ms;
+}
+
+.home-delay-5 {
+  animation-delay: 310ms;
+}
+
+.home-orbit {
+  position: absolute;
+  z-index: -1;
+  border: 3px solid var(--ink);
+  animation: home-float 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.home-orbit-one {
+  top: -7rem;
+  right: 17%;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 999px;
+  background: var(--orange);
+  opacity: 0.9;
+}
+
+.home-orbit-two {
+  right: -2rem;
+  bottom: -5rem;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 2rem;
+  background: var(--pink);
+  opacity: 0.72;
+  animation-delay: -3s;
+}
+
+.home-status-dot {
+  animation: home-pulse 1.8s ease-out infinite;
+}
+
+.home-quick-link,
+.home-quick-arrow,
+.home-nav-link,
+.home-stat-card,
+.home-panel,
+.home-day,
+.home-roadmap,
+.home-text-link span {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.home-quick-link:hover {
+  background: rgb(255 255 255 / 0.2);
+  transform: translateY(-2px);
+}
+
+.home-quick-link:hover .home-quick-arrow,
+.home-text-link:hover span {
+  transform: translate(3px, -2px);
+}
+
+.home-stat-card:hover {
+  transform: translateY(-4px) rotate(-1deg);
+  box-shadow: 4px 5px 0 rgb(255 255 255 / 0.2);
+}
+
+.home-panel {
+  transform-origin: center bottom;
+}
+
+.home-lift:hover {
+  transform: translate(-2px, -3px);
+  box-shadow: 8px 9px 0 0 var(--ink);
+}
+
+.home-nav-link:hover {
+  transform: translateY(-2px);
+}
+
+.home-day {
+  animation: home-day-pop 420ms ease-out both;
+}
+
+.home-day:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.home-day:nth-child(3) {
+  animation-delay: 70ms;
+}
+
+.home-day:nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.home-day:nth-child(5) {
+  animation-delay: 140ms;
+}
+
+.home-day:nth-child(6) {
+  animation-delay: 175ms;
+}
+
+.home-day:nth-child(7) {
+  animation-delay: 210ms;
+}
+
+.home-day:hover {
+  transform: translateY(-4px);
+  box-shadow: 3px 4px 0 0 var(--ink);
+}
+
+.home-roadmap:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink);
+  background: var(--surface);
+}
+
+.home-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .affirmation-enter,
   .affirmation-deck-enter,
   .affirmation-slideshow-progress,
-  .mobile-drawer-enter {
+  .mobile-drawer-enter,
+  .home-reveal,
+  .home-orbit,
+  .home-status-dot,
+  .home-day {
     animation: none;
+  }
+
+  .home-quick-link,
+  .home-quick-arrow,
+  .home-nav-link,
+  .home-stat-card,
+  .home-panel,
+  .home-day,
+  .home-roadmap,
+  .home-text-link span {
+    transition: none;
   }
 
   .affirmation-slideshow-progress {

@@ -38,7 +38,7 @@ export function HabitRow({
             })
           }
           className={clsx(
-            "brut-border flex h-7 w-7 shrink-0 items-center justify-center rounded",
+            "brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
             doneToday ? "bg-green text-white" : "bg-surface"
           )}
         >
@@ -64,14 +64,14 @@ export function HabitRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-14 flex w-[calc(100%-3.5rem)] shrink-0 items-center justify-end gap-2 sm:ml-0 sm:w-auto">
           <Badge color="orange">🔥 {stats.currentStreak}</Badge>
           <Badge color="green">⭐ {stats.score}</Badge>
           <button
             type="button"
             aria-label={active ? "Pause habit" : "Resume habit"}
             disabled={isPending}
-            className="text-muted hover:text-orange"
+            className="flex h-11 w-11 items-center justify-center text-muted hover:text-orange sm:h-9 sm:w-9"
             onClick={() =>
               startTransition(() => {
                 toggleHabitActive(id, !active);
@@ -84,7 +84,7 @@ export function HabitRow({
             type="button"
             aria-label="Delete habit"
             disabled={isPending}
-            className="text-muted hover:text-pink"
+            className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink sm:h-9 sm:w-9"
             onClick={() =>
               startTransition(() => {
                 deleteHabit(id);

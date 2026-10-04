@@ -87,7 +87,7 @@ export default async function ProjectDetailPage({
           <div className="flex flex-wrap items-center gap-2">
             <Badge color="orange">{project.status}</Badge>
             {goal ? (
-              <Link href={`/roadmaps/${goal.id}`}>
+              <Link href={`/roadmaps/${goal.id}`} className="inline-flex min-h-11 items-center sm:min-h-0">
                 <Badge color="yellow">Goal: {goal.title}</Badge>
               </Link>
             ) : null}

@@ -64,15 +64,26 @@ export default async function HabitsPage({
       <Card className="mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <Link href={`/habits?month=${prevMonth}`}>
-              <Button variant="ghost" size="sm">&larr;</Button>
+            <Link
+              href={`/habits?month=${prevMonth}`}
+              aria-label="Previous month"
+              className="brut-border brut-shadow-sm brut-press flex h-11 w-11 items-center justify-center rounded-md bg-surface font-bold hover:bg-yellow"
+            >
+              &larr;
             </Link>
-            <span className="text-sm font-bold">{monthKey}</span>
-            <Link href={`/habits?month=${nextMonth}`}>
-              <Button variant="ghost" size="sm">&rarr;</Button>
+            <span className="min-w-20 text-center text-sm font-bold">{monthKey}</span>
+            <Link
+              href={`/habits?month=${nextMonth}`}
+              aria-label="Next month"
+              className="brut-border brut-shadow-sm brut-press flex h-11 w-11 items-center justify-center rounded-md bg-surface font-bold hover:bg-yellow"
+            >
+              &rarr;
             </Link>
-            <Link href={`/habits?month=${currentMonthKey()}`}>
-              <Button variant="yellow" size="sm">This month</Button>
+            <Link
+              href={`/habits?month=${currentMonthKey()}`}
+              className="brut-border brut-shadow-sm brut-press inline-flex min-h-11 flex-1 items-center justify-center rounded-md bg-yellow px-3 py-1.5 text-xs font-bold uppercase tracking-wide sm:flex-none"
+            >
+              This month
             </Link>
           </div>
           <form action={createHabit} className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:w-auto xl:items-center">

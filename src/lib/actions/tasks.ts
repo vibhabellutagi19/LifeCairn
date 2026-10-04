@@ -6,7 +6,6 @@ import { db } from "@/db";
 import { tasks } from "@/db/schema";
 
 function revalidateAll() {
-  revalidatePath("/tasks");
   revalidatePath("/");
   revalidatePath("/review");
 }

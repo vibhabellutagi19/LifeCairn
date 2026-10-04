@@ -9,10 +9,8 @@ const NAV_ITEMS = [
   { href: "/", label: "Dashboard", emoji: "🏠" },
   { href: "/roadmaps", label: "Roadmaps", emoji: "🗺️" },
   { href: "/projects", label: "Projects", emoji: "🧩" },
-  { href: "/tasks", label: "Daily Tasks", emoji: "✅" },
   { href: "/habits", label: "Habit Tracker", emoji: "🔥" },
-  { href: "/affirmations", label: "Affirmations", emoji: "✨" },
-  { href: "/journal", label: "Journal", emoji: "📓" },
+  { href: "/manifestation", label: "Manifestation", emoji: "◌" },
   { href: "/finance", label: "Finance", emoji: "💰" },
   { href: "/review", label: "Review", emoji: "📊" },
 ];

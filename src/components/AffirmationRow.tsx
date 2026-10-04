@@ -70,7 +70,7 @@ export function AffirmationRow({
               setAffirmationSubcategory(id, e.target.value);
             })
           }
-          className="mt-2 border-b border-dashed border-ink/40 bg-transparent py-1 text-xs font-bold uppercase tracking-wide text-ink/70 focus:border-orange focus:outline-none"
+          className="mt-2 min-h-11 border-b border-dashed border-ink/40 bg-transparent py-1 text-base font-bold uppercase tracking-wide text-ink/70 focus:border-orange focus:outline-none sm:min-h-0 sm:text-xs"
         >
           <option value="">No subcategory</option>
           {AFFIRMATION_SUBCATEGORIES.map((s) => (
@@ -99,7 +99,7 @@ export function AffirmationRow({
           type="button"
           aria-label="Delete affirmation"
           disabled={isPending}
-          className="flex h-10 w-10 items-center justify-center text-muted hover:text-pink disabled:opacity-50"
+          className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink disabled:opacity-50 sm:h-10 sm:w-10"
           onClick={() =>
             startTransition(() => {
               deleteAffirmation(id);

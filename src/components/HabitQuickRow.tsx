@@ -32,7 +32,7 @@ export function HabitQuickRow({
           })
         }
         className={clsx(
-          "brut-border flex h-6 w-6 shrink-0 items-center justify-center rounded",
+          "brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
           doneToday ? "bg-green text-white" : "bg-surface"
         )}
       >

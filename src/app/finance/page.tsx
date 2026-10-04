@@ -6,13 +6,9 @@ import {
   financeEntries,
   financeSnapshotItems,
   financeSnapshots,
-  financeTargets,
 } from "@/db/schema";
-import { Button, Card, EmptyState, Input, PageHeader, ProgressBar } from "@/components/ui";
-import {
-  saveMonthlyFinanceSnapshot,
-  setMonthlyTarget,
-} from "@/lib/actions/finance";
+import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
+import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
 import { SavingRow } from "@/components/AccountRow";
 import { FinanceEntryModal } from "@/components/FinanceEntryModal";
 import { FinanceEntryRow } from "@/components/FinanceEntryRow";
@@ -47,14 +43,13 @@ export default async function FinancePage({
     : monthKey;
   const { start, end } = monthRangeISO(selectedMonth);
 
-  const [accounts, monthEntries, target, monthTotals, snapshots, allSnapshotRows] = await Promise.all([
+  const [accounts, monthEntries, monthTotals, snapshots, allSnapshotRows] = await Promise.all([
     db.select().from(financeAccounts).orderBy(financeAccounts.id),
     db
       .select()
       .from(financeEntries)
       .where(and(gte(financeEntries.date, start), lte(financeEntries.date, end)))
       .orderBy(desc(financeEntries.date), desc(financeEntries.id)),
-    db.query.financeTargets.findFirst({ where: eq(financeTargets.month, selectedMonth) }),
     db
       .select({
         type: financeEntries.type,
@@ -90,7 +85,6 @@ export default async function FinancePage({
   const expense = Number(monthTotals.find((t) => t.type === "expense")?.total ?? 0);
   const savedThisMonth = income - expense;
   const savingsRate = income > 0 ? (savedThisMonth / income) * 100 : 0;
-  const targetAmount = target ? Number(target.targetAmount) : 0;
   const incomeEntries = monthEntries.filter((entry) => entry.type === "income");
   const expenseEntries = monthEntries.filter((entry) => entry.type === "expense");
   const expenseByCategory = EXPENSE_CATEGORIES.map((category) => ({
@@ -202,69 +196,37 @@ export default async function FinancePage({
         </Card>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-xl font-bold">Income target</h2>
-              <p className="text-sm font-semibold text-muted">Progress for {formatMonthLabel(selectedMonth)}</p>
-            </div>
-            <form action={setMonthlyTarget.bind(null, selectedMonth)} className="flex items-center gap-2">
-              <span className="text-sm font-bold text-muted">€</span>
-              <Input
-                name="targetAmount"
-                defaultValue={target?.targetAmount ?? ""}
-                placeholder="70000"
-                className="w-28"
-                inputMode="decimal"
-              />
-              <Button type="submit" variant="ghost" size="sm">Set</Button>
-            </form>
+      <Card className="mb-6">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl font-bold">Expense breakdown</h2>
+            <p className="text-sm font-semibold text-muted">Where your money went this month</p>
           </div>
-          {targetAmount > 0 ? (
-            <>
-              <ProgressBar value={(income / targetAmount) * 100} color="green" />
-              <p className="mt-3 text-sm font-semibold text-muted">
-                {formatEUR(income)} of {formatEUR(targetAmount)} target
-              </p>
-            </>
-          ) : (
-            <EmptyState>Set a monthly target to track your income progress.</EmptyState>
-          )}
-        </Card>
-
-        <Card>
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-display text-xl font-bold">Expense breakdown</h2>
-              <p className="text-sm font-semibold text-muted">Where your money went this month</p>
-            </div>
-            <span className="rounded-md bg-pink px-3 py-1.5 text-sm font-bold text-white">
-              {formatEUR(expense)}
-            </span>
-          </div>
-          {expenseByCategory.length === 0 ? (
-            <EmptyState>No expenses recorded for {formatMonthLabel(selectedMonth)}.</EmptyState>
-          ) : (
-            <div className="space-y-3">
-              {expenseByCategory.map(({ category, total }) => (
-                <div key={category}>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-sm font-bold">
-                    <span>{category}</span>
-                    <span>{formatEUR(total)}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-background">
-                    <div
-                      className="h-full rounded-full bg-pink"
-                      style={{ width: `${expense > 0 ? Math.max(4, (total / expense) * 100) : 0}%` }}
-                    />
-                  </div>
+          <span className="rounded-md bg-pink px-3 py-1.5 text-sm font-bold text-white">
+            {formatEUR(expense)}
+          </span>
+        </div>
+        {expenseByCategory.length === 0 ? (
+          <EmptyState>No expenses recorded for {formatMonthLabel(selectedMonth)}.</EmptyState>
+        ) : (
+          <div className="space-y-3">
+            {expenseByCategory.map(({ category, total }) => (
+              <div key={category}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-sm font-bold">
+                  <span>{category}</span>
+                  <span>{formatEUR(total)}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
+                <div className="h-2 overflow-hidden rounded-full bg-background">
+                  <div
+                    className="h-full rounded-full bg-pink"
+                    style={{ width: `${expense > 0 ? Math.max(4, (total / expense) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="mb-6">
         <div className="mb-4">

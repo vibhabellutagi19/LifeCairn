@@ -36,7 +36,7 @@ export function AffirmationCheckin({
               })
             }
             className={clsx(
-              "brut-border brut-shadow-sm brut-press flex-1 rounded-md py-2 text-xs font-bold uppercase tracking-wide",
+              "brut-border brut-shadow-sm brut-press min-h-11 flex-1 rounded-md px-2 py-2 text-xs font-bold uppercase tracking-wide",
               done ? "bg-green text-white" : "bg-surface hover:bg-yellow"
             )}
           >

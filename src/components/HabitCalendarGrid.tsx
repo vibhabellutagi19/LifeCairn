@@ -46,8 +46,10 @@ export function HabitCalendarGrid({
   if (habits.length === 0) return null;
 
   return (
-    <div className="brut-border overflow-x-auto rounded-lg bg-surface" role="region" aria-label="Habit calendar" tabIndex={0}>
-      <table className="border-collapse">
+    <div>
+      <p className="mb-2 text-xs font-semibold text-muted sm:hidden">Swipe sideways to see the full month.</p>
+      <div className="brut-border overflow-x-auto rounded-lg bg-surface" role="region" aria-label="Habit calendar" tabIndex={0}>
+        <table className="border-collapse">
         <thead>
           <tr>
             <th className="sticky left-0 z-10 min-w-[150px] border-b-2 border-ink bg-surface p-2 text-left text-xs font-bold uppercase tracking-wide text-muted sm:min-w-[220px]">
@@ -82,7 +84,8 @@ export function HabitCalendarGrid({
             />
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -114,12 +117,12 @@ function HabitGridRow({
       <tr className={clsx(!habit.active && "opacity-50")}>
         <td className="sticky left-0 z-10 min-w-[150px] border-b border-ink/20 bg-surface p-2 sm:min-w-[220px]" colSpan={1}>
           <div className="space-y-1">
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="text-xs" />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="text-base sm:text-xs" />
             <div className="flex gap-1">
               <Select
                 value={roadmapId}
                 onChange={(e) => setRoadmapId(e.target.value)}
-                className="text-xs"
+                className="text-base sm:text-xs"
               >
                 <option value="">No roadmap</option>
                 {roadmaps.map((r) => (
@@ -133,7 +136,7 @@ function HabitGridRow({
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="text-xs"
+              className="text-base sm:text-xs"
             />
             <div className="flex gap-1">
               <Button
@@ -182,7 +185,7 @@ function HabitGridRow({
               type="button"
               aria-label={habit.active ? "Pause habit" : "Resume habit"}
               disabled={isPending}
-              className="flex h-10 w-8 items-center justify-center text-muted hover:text-orange sm:h-8"
+              className="flex h-11 w-11 items-center justify-center text-muted hover:text-orange sm:h-8 sm:w-8"
               onClick={() =>
                 startTransition(() => {
                   toggleHabitActive(habit.id, !habit.active);
@@ -195,7 +198,7 @@ function HabitGridRow({
               type="button"
               aria-label="Delete habit"
               disabled={isPending}
-              className="flex h-10 w-8 items-center justify-center text-muted hover:text-pink sm:h-8"
+              className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink sm:h-8 sm:w-8"
               onClick={() =>
                 startTransition(() => {
                   if (confirm(`Delete "${habit.title}" and all its history?`)) {
@@ -236,7 +239,7 @@ function HabitGridRow({
                 })
               }
               className={clsx(
-                "brut-border mx-auto flex h-6 w-6 items-center justify-center rounded text-[11px]",
+                "brut-border mx-auto flex h-11 w-11 items-center justify-center rounded text-sm sm:h-7 sm:w-7 sm:text-[11px]",
                 isChecked ? "bg-green text-white" : future ? "cursor-not-allowed bg-background/50" : "bg-surface"
               )}
             >

@@ -29,7 +29,7 @@ export function CelebrateAffirmationModal({
         size="sm"
         aria-label="Celebrate this manifestation"
         title={compact ? "Mark as manifested" : undefined}
-        className={compact ? "h-9 w-9 !p-0 text-base" : undefined}
+        className={compact ? "h-11 w-11 !p-0 text-base sm:h-9 sm:w-9" : undefined}
         onClick={() => dialogRef.current?.showModal()}
       >
         <span aria-hidden>✨</span>
@@ -96,7 +96,7 @@ export function CelebrateAffirmationModal({
             <p className="rounded-md bg-yellow/30 p-3 text-sm font-semibold text-ink/75">
               This affirmation will move out of your active deck and into your celebration history.
             </p>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Not yet
               </Button>

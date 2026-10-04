@@ -42,7 +42,7 @@ export default async function RoadmapsPage() {
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide">Description</label>
               <Textarea name="description" rows={3} placeholder="What does this roadmap cover?" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wide">Start</label>
                 <Input type="date" name="startDate" />

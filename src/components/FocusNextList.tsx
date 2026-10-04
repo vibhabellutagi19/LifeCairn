@@ -46,7 +46,7 @@ function FocusRow({ item: t, index: i }: { item: FocusItem; index: number }) {
 
   return (
     <div className="brut-border rounded-md bg-surface p-3">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap sm:items-center">
         <span className="font-display w-6 shrink-0 text-lg font-bold text-muted">{i + 1}</span>
         <Link
           href={`/projects/${t.projectId}/tasks/${t.branchName || t.id}`}
@@ -55,13 +55,15 @@ function FocusRow({ item: t, index: i }: { item: FocusItem; index: number }) {
           <p className="truncate font-bold">{t.title}</p>
           <p className="text-xs font-bold uppercase tracking-wide text-muted">{t.projectName}</p>
         </Link>
-        {t.status === "in_progress" ? <Badge color="orange">In progress</Badge> : null}
-        <Badge color={PRIORITY_COLOR[t.priority]}>{t.priority}</Badge>
+        <div className="ml-9 flex w-[calc(100%-2.25rem)] flex-wrap items-center gap-2 sm:ml-0 sm:w-auto sm:shrink-0">
+          {t.status === "in_progress" ? <Badge color="orange">In progress</Badge> : null}
+          <Badge color={PRIORITY_COLOR[t.priority]}>{t.priority}</Badge>
+        </div>
       </div>
 
       {editing ? (
-        <div className="mt-2 flex flex-wrap items-end gap-2 pl-9">
-          <div>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-end sm:pl-9">
+          <div className="min-w-0">
             <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-muted">
               Start
             </label>
@@ -69,10 +71,10 @@ function FocusRow({ item: t, index: i }: { item: FocusItem; index: number }) {
               type="date"
               value={startVal}
               onChange={(e) => setStartVal(e.target.value)}
-              className="w-auto py-1 text-xs"
+              className="w-full py-1 text-base sm:w-auto sm:text-xs"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-muted">
               End
             </label>
@@ -80,7 +82,7 @@ function FocusRow({ item: t, index: i }: { item: FocusItem; index: number }) {
               type="date"
               value={dueVal}
               onChange={(e) => setDueVal(e.target.value)}
-              className="w-auto py-1 text-xs"
+              className="w-full py-1 text-base sm:w-auto sm:text-xs"
             />
           </div>
           <Button
@@ -114,7 +116,7 @@ function FocusRow({ item: t, index: i }: { item: FocusItem; index: number }) {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="mt-1 pl-9 text-xs font-bold uppercase tracking-wide text-muted underline decoration-dashed underline-offset-2 hover:text-orange"
+          className="mt-1 min-h-11 pl-9 text-left text-xs font-bold uppercase tracking-wide text-muted underline decoration-dashed underline-offset-2 hover:text-orange"
         >
           {t.startDate && t.dueDate
             ? `${formatDateShort(t.startDate)} → ${formatDateShort(t.dueDate)}`
