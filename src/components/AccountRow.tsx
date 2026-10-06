@@ -45,7 +45,7 @@ export function SavingRow({
             </p>
             <button
               type="button"
-              className="inline-flex min-h-11 items-center justify-end text-xs font-bold uppercase tracking-wide text-blue hover:underline sm:min-h-0"
+              className="inline-flex min-h-11 min-w-11 items-center justify-end px-1 text-xs font-bold uppercase tracking-wide text-blue hover:underline sm:min-h-0 sm:min-w-0 sm:px-0"
               onClick={() => {
                 setValue(balance);
                 setIsEditing((current) => !current);

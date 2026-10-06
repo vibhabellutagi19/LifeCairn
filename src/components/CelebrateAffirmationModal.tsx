@@ -3,6 +3,7 @@
 import { useId, useRef, useTransition } from "react";
 import { Button, Input, Textarea } from "@/components/ui";
 import { celebrateAffirmation } from "@/lib/actions/affirmations";
+import { burstConfetti } from "@/lib/confetti";
 
 export function CelebrateAffirmationModal({
   id,
@@ -63,9 +64,17 @@ export function CelebrateAffirmationModal({
             onSubmit={(event) => {
               event.preventDefault();
               const formData = new FormData(event.currentTarget);
+              const source = (event.nativeEvent as SubmitEvent).submitter ?? event.currentTarget;
               startTransition(async () => {
                 await celebrateAffirmation(id, formData);
+                const rect = source.getBoundingClientRect();
                 close();
+                // The dialog is gone by now, so burst from where its button was.
+                const anchor = document.createElement("span");
+                Object.assign(anchor.style, { position: "fixed", left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+                document.body.appendChild(anchor);
+                burstConfetti(anchor, 40, ["🎉", "✨", "🌟", "💛", "🏆"]);
+                anchor.remove();
               });
             }}
           >

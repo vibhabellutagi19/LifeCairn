@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { clsx } from "clsx";
 import { toggleHabitLog } from "@/lib/actions/habits";
+import { burstConfetti } from "@/lib/confetti";
 import { Badge } from "@/components/ui";
 
 export function HabitQuickRow({
@@ -26,13 +27,14 @@ export function HabitQuickRow({
         type="button"
         aria-label={doneToday ? "Mark not done today" : "Mark done today"}
         disabled={isPending}
-        onClick={() =>
+        onClick={(event) => {
+          if (!doneToday) burstConfetti(event.currentTarget);
           startTransition(() => {
             toggleHabitLog(id, today, !doneToday);
-          })
-        }
+          });
+        }}
         className={clsx(
-          "brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
+          "check-pop brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
           doneToday ? "bg-green text-white" : "bg-surface"
         )}
       >

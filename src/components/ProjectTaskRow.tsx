@@ -80,7 +80,7 @@ export function ProjectTaskRow({
             {title}
           </p>
         )}
-        <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2 sm:flex sm:w-auto sm:shrink-0">
           <select
             suppressHydrationWarning
             disabled={isPending}
@@ -90,7 +90,7 @@ export function ProjectTaskRow({
                 setProjectTaskPriority(id, projectId, e.target.value as "low" | "medium" | "high");
               })
             }
-            className="brut-border min-h-11 min-w-0 flex-1 rounded-md bg-surface px-2 py-1 text-sm font-bold uppercase sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]"
+            className="brut-border min-h-11 min-w-0 flex-1 rounded-md bg-surface px-2 py-1 text-xs font-bold uppercase w-full sm:w-auto sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -111,7 +111,7 @@ export function ProjectTaskRow({
               })
             }
             className={clsx(
-              "brut-border min-h-11 min-w-0 flex-1 rounded-md px-2 py-1 text-sm font-bold uppercase sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]",
+              "brut-border min-h-11 w-full min-w-0 flex-1 rounded-md px-2 py-1 text-xs font-bold uppercase sm:w-auto sm:min-h-0 sm:flex-none sm:px-1 sm:py-0.5 sm:text-[11px]",
               STATUS_SELECT_COLOR[status]
             )}
           >
@@ -149,7 +149,7 @@ export function ProjectTaskRow({
                 setProjectTaskRelease(id, projectId, e.target.value ? Number(e.target.value) : null);
               })
             }
-            className="brut-border max-w-full rounded bg-surface px-2 py-1 text-xs font-bold uppercase normal-case sm:px-1 sm:py-0.5 sm:text-[11px]"
+            className="brut-border min-h-11 max-w-full rounded bg-surface px-2 py-1 text-xs font-bold uppercase normal-case sm:min-h-0 sm:px-1 sm:py-0.5 sm:text-[11px]"
           >
             <option value="">No release</option>
             {releases.map((r) => (

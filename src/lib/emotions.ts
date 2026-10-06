@@ -9,7 +9,8 @@ export const EMOTIONS = [
   { key: "drained", label: "Drained", emoji: "🪫", category: "negative" },
 ] as const;
 
-export type EmotionCategory = "positive" | "negative";
+// "missing" = feelings the user wants more of (e.g. for manifestation); user-created only.
+export type EmotionCategory = "positive" | "negative" | "missing";
 export type EmotionOption = {
   key: string;
   label: string;

@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { clsx } from "clsx";
 import { deleteTask, toggleTask } from "@/lib/actions/tasks";
+import { burstConfetti } from "@/lib/confetti";
 
 export function TaskRow({
   id,
@@ -22,13 +23,14 @@ export function TaskRow({
       <button
         type="button"
         aria-label={completed ? "Mark incomplete" : "Mark complete"}
-        onClick={() =>
+        onClick={(event) => {
+          if (!completed) burstConfetti(event.currentTarget);
           startTransition(() => {
             toggleTask(id, !completed);
-          })
-        }
+          });
+        }}
         className={clsx(
-          "brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
+          "check-pop brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded sm:h-7 sm:w-7",
           completed ? "bg-green text-white" : "bg-surface"
         )}
       >

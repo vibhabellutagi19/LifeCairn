@@ -6,7 +6,6 @@ import {
   affirmations,
   customEmotions,
   emotionalCheckins,
-  emotionalTrackingSettings,
   financeAccounts,
   financeEntries,
   habitLogs,
@@ -24,7 +23,11 @@ import { ManifestationSection } from "@/components/ManifestationSection";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
 import { HabitQuickRow } from "@/components/HabitQuickRow";
 import { createTask } from "@/lib/actions/tasks";
-import { isActiveOnDate } from "@/lib/focusNext";
+import { HomeCat } from "@/components/HomeCat";
+import { HomeMotion } from "@/components/HomeMotion";
+import { CountUp } from "@/components/CountUp";
+import { buildCatNudges } from "@/lib/catNudges";
+import { isActiveOnDate, rankFocusTasks } from "@/lib/focusNext";
 import { computeHabitStats } from "@/lib/habitStats";
 import { computeAffirmationStats } from "@/lib/affirmationStats";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
@@ -61,7 +64,6 @@ export default async function DashboardPage({
     todaysJournal,
     affirmationCheckinRows,
     emotionCheckinRows,
-    trackingSettings,
     customEmotionRows,
     activeAffirmationCount,
     allRoadmaps,
@@ -84,9 +86,6 @@ export default async function DashboardPage({
       .from(emotionalCheckins)
       .where(eq(emotionalCheckins.date, today))
       .orderBy(emotionalCheckins.hour),
-    db.query.emotionalTrackingSettings.findFirst({
-      where: eq(emotionalTrackingSettings.profileKey, "default"),
-    }),
     db
       .select({
         id: customEmotions.id,
@@ -154,15 +153,46 @@ export default async function DashboardPage({
     ? Math.round((habitsDoneToday / habitRows.length) * 100)
     : 0;
   const affirmationStats = computeAffirmationStats(affirmationCheckinRows, today);
+  const focusTask = rankFocusTasks(
+    allProjectTasks.filter((task) => task.status !== "done" && task.status !== "blocked")
+  )[0];
+  const catNudges = buildCatNudges({
+    today,
+    focusTask,
+    pendingHabits: habitRows
+      .filter((row) => !row.doneToday)
+      .map((row) => ({ title: row.habit.title, currentStreak: row.stats.currentStreak })),
+    plannedCount: selectedTaskCount,
+    remainingCount: selectedTaskCount - completedCount,
+    hasAffirmations: activeAffirmationCount > 0,
+    affirmationCheckinsLeft: Object.values(affirmationStats.checkedToday).filter((done) => !done).length,
+    journalWritten: Boolean(todaysJournal?.content),
+  });
   const selectedTaskProgress = selectedTaskCount > 0
     ? Math.round((completedCount / selectedTaskCount) * 100)
     : 0;
 
   return (
     <div className="mx-auto max-w-[1500px]">
-      <section className="home-hero home-reveal relative overflow-hidden rounded-[2rem] bg-ink p-5 text-white sm:p-8 lg:p-10">
+      <HomeMotion />
+      <section className="home-hero home-reveal relative overflow-hidden rounded-[2rem] bg-ink p-5 text-white sm:p-8 sm:pb-28 lg:p-10 lg:pb-28 pb-24">
         <div aria-hidden className="home-orbit home-orbit-one" />
         <div aria-hidden className="home-orbit home-orbit-two" />
+        {[
+          { top: "12%", left: "46%", size: "1.1rem", delay: "0s" },
+          { top: "7%", left: "33%", size: "0.8rem", delay: "-1.2s" },
+          { top: "62%", left: "38%", size: "0.9rem", delay: "-2.1s" },
+          { top: "18%", left: "72%", size: "1.3rem", delay: "-0.6s" },
+        ].map((spark) => (
+          <span
+            key={spark.left}
+            aria-hidden
+            className="home-spark"
+            style={{ top: spark.top, left: spark.left, fontSize: spark.size, animationDelay: spark.delay }}
+          >
+            ✦
+          </span>
+        ))}
         <div className="relative z-10 grid gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(26rem,0.8fr)] xl:items-end">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border-2 border-white/30 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em]">
@@ -197,27 +227,28 @@ export default async function DashboardPage({
           </div>
 
           <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:gap-3">
-            <div className="home-stat-card rounded-2xl bg-orange p-3 text-white sm:p-4">
+            <div data-tilt className="home-stat-card rounded-2xl bg-orange p-3 text-white sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/75">
                 {selectedDate === today ? "Today" : formatDateShort(selectedDate)}
               </p>
-              <p className="mt-2 font-display text-3xl font-bold sm:text-4xl">{selectedTaskProgress}%</p>
+              <p className="mt-2 font-display text-3xl font-bold sm:text-4xl"><CountUp value={selectedTaskProgress} suffix="%" /></p>
               <p className="mt-1 text-xs font-semibold text-white/80">tasks complete</p>
             </div>
-            <div className="home-stat-card rounded-2xl bg-green p-3 text-white sm:p-4">
+            <div data-tilt className="home-stat-card rounded-2xl bg-green p-3 text-white sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/75">Rhythm</p>
               <p className="mt-2 font-display text-3xl font-bold sm:text-4xl">
-                {habitsDoneToday}/{habitRows.length}
+                <CountUp value={habitsDoneToday} />/{habitRows.length}
               </p>
               <p className="mt-1 text-xs font-semibold text-white/80">habits today</p>
             </div>
-            <div className="home-stat-card rounded-2xl bg-yellow p-3 text-ink sm:p-4">
+            <div data-tilt className="home-stat-card rounded-2xl bg-yellow p-3 text-ink sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink/60">Momentum</p>
-              <p className="mt-2 font-display text-3xl font-bold sm:text-4xl">{affirmationStats.currentStreak}</p>
+              <p className="mt-2 font-display text-3xl font-bold sm:text-4xl"><CountUp value={affirmationStats.currentStreak} /></p>
               <p className="mt-1 text-xs font-semibold text-ink/65">day streak</p>
             </div>
           </div>
         </div>
+        <HomeCat nudges={catNudges} />
       </section>
 
       <section aria-labelledby="week-heading" className="home-reveal home-delay-1 mt-6">
@@ -225,7 +256,7 @@ export default async function DashboardPage({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b-3 border-ink bg-yellow/40 px-4 py-4 sm:px-5">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">Pick a day</p>
-              <h2 id="week-heading" className="font-display text-2xl font-bold">Your week</h2>
+              <h2 id="week-heading" className="font-display text-2xl font-bold"><span className="home-marker is-always">Your week</span></h2>
               <p className="text-sm font-semibold text-muted">
                 {formatDateShort(week.start)} &ndash; {formatDateShort(week.end)}
               </p>
@@ -315,7 +346,7 @@ export default async function DashboardPage({
           {selectedTaskCount === 0 ? (
             <div className="mt-5 grid items-center gap-4 rounded-xl border-2 border-dashed border-ink/25 bg-yellow/20 p-4 sm:p-5 lg:grid-cols-[minmax(0,0.75fr)_minmax(24rem,1.25fr)]">
               <div className="flex items-start gap-3">
-                <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-yellow text-xl">☀️</span>
+                <span aria-hidden className="home-sun flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-yellow text-xl">☀️</span>
                 <div>
                   <h3 className="font-display text-xl font-bold">Nothing planned yet</h3>
                   <p className="mt-1 text-sm font-semibold leading-relaxed text-muted">
@@ -376,17 +407,17 @@ export default async function DashboardPage({
         </Card>
       </div>
 
-      <section aria-labelledby="rhythm-heading" className="home-reveal home-delay-3 mt-8">
+      <section aria-labelledby="rhythm-heading" className="home-scroll mt-8">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-green">Small actions, repeated</p>
-            <h2 id="rhythm-heading" className="font-display text-3xl font-bold">Habit rhythm</h2>
+            <h2 id="rhythm-heading" className="font-display text-3xl font-bold"><span className="home-marker">Habit rhythm</span></h2>
           </div>
           <Link href="/habits" className="home-text-link text-sm font-bold">Open habit tracker <span aria-hidden>&rarr;</span></Link>
         </div>
 
         <Card className="home-panel border-t-[8px] border-t-green">
-          <div className="grid gap-5 lg:grid-cols-[minmax(13rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(13rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
@@ -410,7 +441,7 @@ export default async function DashboardPage({
                 <Link href="/habits" className="home-text-link mt-3 text-sm font-bold">Create a habit <span aria-hidden>&rarr;</span></Link>
               </div>
             ) : (
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              <div className="home-stagger grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {habitRows.slice(0, 3).map(({ habit, stats, doneToday }) => (
                   <HabitQuickRow
                     key={habit.id}
@@ -439,18 +470,13 @@ export default async function DashboardPage({
         affirmationCheckins={affirmationStats.checkedToday}
         affirmationStreak={affirmationStats.currentStreak}
         emotionalCheckins={emotionCheckinRows}
-        trackingWindow={{
-          startHour: trackingSettings?.startHour ?? 7,
-          endHour: trackingSettings?.endHour ?? 22,
-        }}
         customEmotions={customEmotionRows}
-        defaultHour={new Date().getHours()}
       />
 
-      <section aria-labelledby="overview-heading" className="home-reveal home-delay-5 mt-8">
+      <section aria-labelledby="overview-heading" className="home-scroll mt-8">
         <div className="mb-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">The bigger picture</p>
-          <h2 id="overview-heading" className="font-display text-3xl font-bold">Around your home</h2>
+          <h2 id="overview-heading" className="font-display text-3xl font-bold"><span className="home-marker">Around your home</span></h2>
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <Card className="home-panel home-lift lg:col-span-2">
@@ -466,7 +492,7 @@ export default async function DashboardPage({
             {allRoadmaps.length === 0 ? (
               <EmptyState>No roadmaps yet. Create one to start tracking milestones.</EmptyState>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="home-stagger grid gap-3 sm:grid-cols-2">
                 {allRoadmaps.map((roadmap) => {
                   const roadmapMilestones = allMilestones.filter((milestone) => milestone.roadmapId === roadmap.id);
                   const done = roadmapMilestones.filter((milestone) => milestone.status === "done").length;
@@ -477,11 +503,11 @@ export default async function DashboardPage({
                     <Link
                       key={roadmap.id}
                       href={`/roadmaps/${roadmap.id}`}
-                      className="home-roadmap rounded-xl border-2 border-ink/15 bg-background/60 p-4"
+                      data-tilt className="home-roadmap rounded-xl border-2 border-ink/15 bg-background/60 p-4"
                     >
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <p className="font-display text-lg font-bold leading-tight">{roadmap.title}</p>
-                        <span className="font-display text-xl font-bold text-orange">{percentage}%</span>
+                        <span className="home-pct font-display text-xl font-bold text-orange">{percentage}%</span>
                       </div>
                       <ProgressBar value={percentage} />
                       <p className="mt-2 text-xs font-semibold text-muted">
@@ -500,7 +526,7 @@ export default async function DashboardPage({
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue">Money room</p>
                 <h3 className="font-display text-2xl font-bold">Finance</h3>
               </div>
-              <span aria-hidden className="rounded-full bg-blue/10 p-2 text-3xl">💰</span>
+              <span aria-hidden className="home-emoji rounded-full bg-blue/10 p-2 text-3xl">💰</span>
             </div>
             <div className="mt-7">
               <p className="text-xs font-bold uppercase tracking-wide text-muted">Total savings</p>

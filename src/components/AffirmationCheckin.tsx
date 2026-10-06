@@ -3,11 +3,12 @@
 import { useTransition } from "react";
 import { clsx } from "clsx";
 import { setAffirmationCheckin, type AffirmationSlot } from "@/lib/actions/affirmations";
+import { burstConfetti } from "@/lib/confetti";
 
-const SLOTS: { key: AffirmationSlot; label: string; short: string }[] = [
-  { key: "morning", label: "Morning", short: "AM" },
-  { key: "afternoon", label: "Afternoon", short: "Noon" },
-  { key: "evening", label: "Evening", short: "PM" },
+const SLOTS: { key: AffirmationSlot; label: string; short: string; icon: string }[] = [
+  { key: "morning", label: "Morning", short: "AM", icon: "🌅" },
+  { key: "afternoon", label: "Afternoon", short: "Noon", icon: "☀️" },
+  { key: "evening", label: "Evening", short: "PM", icon: "🌙" },
 ];
 
 export function AffirmationCheckin({
@@ -30,17 +31,18 @@ export function AffirmationCheckin({
             key={s.key}
             type="button"
             disabled={isPending}
-            onClick={() =>
+            onClick={(event) => {
+              if (!done) burstConfetti(event.currentTarget, 12, [s.icon, "✨", "✦"]);
               startTransition(() => {
                 setAffirmationCheckin(date, s.key, !done);
-              })
-            }
+              });
+            }}
             className={clsx(
-              "brut-border brut-shadow-sm brut-press min-h-11 flex-1 rounded-md px-2 py-2 text-xs font-bold uppercase tracking-wide",
+              "brut-border brut-shadow-sm brut-press inline-flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-md px-2 py-2 text-xs font-bold uppercase tracking-wide",
               done ? "bg-green text-white" : "bg-surface hover:bg-yellow"
             )}
           >
-            {done ? "✓ " : ""}
+            <span aria-hidden className="mr-1">{done ? "✓" : s.icon}</span>
             {compact ? s.short : s.label}
           </button>
         );

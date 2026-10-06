@@ -50,6 +50,7 @@ export const taskPriority = pgEnum("task_priority", ["low", "medium", "high"]);
 export const emotionCategory = pgEnum("emotion_category", [
   "positive",
   "negative",
+  "missing",
 ]);
 
 // A roadmap is a generic goal track (Career, Money, Health, Relationship, or
@@ -342,3 +343,37 @@ export const habitLogs = pgTable(
   },
   (table) => [unique().on(table.habitId, table.date)]
 );
+
+// One finished focus session from the Pomodoro timer. The task title is
+// copied so history still reads well after a task is renamed or deleted.
+export const pomodoroSessions = pgTable("pomodoro_sessions", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  minutes: integer("minutes").notNull(),
+  taskId: integer("task_id").references(() => projectTasks.id, { onDelete: "set null" }),
+  taskTitle: varchar("task_title", { length: 300 }),
+  completedAt: timestamp("completed_at").notNull().defaultNow(),
+});
+
+// Timer durations, same single "default" profile as emotional tracking.
+export const pomodoroSettings = pgTable("pomodoro_settings", {
+  id: serial("id").primaryKey(),
+  profileKey: varchar("profile_key", { length: 50 }).notNull().default("default").unique(),
+  focusMinutes: integer("focus_minutes").notNull().default(25),
+  shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
+  longBreakMinutes: integer("long_break_minutes").notNull().default(15),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// One finished ho'oponopono session: how many times the four phrases were
+// said, the goal set (null = open-ended / conversational), an optional
+// intention (who or what it was for) and an optional reflection afterwards.
+export const hooponoponoRounds = pgTable("hooponopono_rounds", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  repetitions: integer("repetitions").notNull().default(108),
+  target: integer("target"),
+  intention: varchar("intention", { length: 200 }),
+  note: text("note"),
+  completedAt: timestamp("completed_at").notNull().defaultNow(),
+});

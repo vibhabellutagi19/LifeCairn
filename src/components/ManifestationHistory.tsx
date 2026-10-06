@@ -1,5 +1,9 @@
 import { Card, EmptyState } from "@/components/ui";
 import { formatDateLong } from "@/lib/format";
+import { categoryEmoji } from "@/lib/affirmationSubcategories";
+import { affirmationLines } from "@/lib/affirmationText";
+
+const TILTS = ["-2deg", "1.5deg", "-1deg", "2deg", "-1.5deg", "1deg"];
 
 export function ManifestationHistory({
   celebrations,
@@ -22,7 +26,7 @@ export function ManifestationHistory({
           </span>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-pink">Your wins</p>
-            <h2 className="font-display text-2xl font-bold">Celebrations</h2>
+            <h2 className="font-display text-2xl font-bold">Wall of wins</h2>
             <p className="text-sm font-semibold text-muted">
               A history of affirmations that became real.
             </p>
@@ -38,23 +42,23 @@ export function ManifestationHistory({
           When an affirmation manifests, celebrate it here and keep the story of that moment.
         </EmptyState>
       ) : (
-        <div className="grid max-h-[520px] grid-cols-1 gap-4 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid max-h-[640px] grid-cols-1 gap-5 overflow-y-auto p-2 md:grid-cols-2 xl:grid-cols-3">
           {celebrations.map((celebration, index) => (
             <article
               key={celebration.id}
-              className="affirmation-enter rounded-xl border-2 border-ink/15 bg-surface p-5 shadow-[3px_3px_0_0_var(--ink)]"
-              style={{ animationDelay: `${Math.min(index * 65, 325)}ms` }}
+              className="win-card affirmation-enter relative overflow-hidden rounded-xl border-[3px] border-ink bg-surface p-5"
+              style={{ animationDelay: `${Math.min(index * 65, 325)}ms`, "--tilt": TILTS[index % TILTS.length] } as React.CSSProperties}
             >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="rounded-full bg-yellow px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide">
-                  {celebration.category}
+                  <span aria-hidden>🏆 {categoryEmoji(celebration.category)}</span> {celebration.category}
                 </span>
                 <time className="text-xs font-bold text-muted" dateTime={celebration.manifestedOn}>
                   {formatDateLong(celebration.manifestedOn)}
                 </time>
               </div>
               <blockquote className="font-display text-lg font-semibold leading-relaxed text-ink">
-                “{celebration.affirmationText}”
+                “{affirmationLines(celebration.affirmationText).join(" · ")}”
               </blockquote>
               {celebration.subcategory ? (
                 <p className="mt-3 text-xs font-bold uppercase tracking-wide text-orange">

@@ -175,7 +175,7 @@ function HabitGridRow({
           <button
             type="button"
             onClick={() => setEditing(true)}
-              className="min-h-11 max-w-[92px] truncate text-left text-sm font-bold hover:underline sm:min-h-0 sm:max-w-none"
+              className="line-clamp-2 min-h-11 max-w-[118px] text-left text-sm font-bold leading-tight hover:underline sm:min-h-0 sm:max-w-none"
             title="Click to edit"
           >
             {habit.title}

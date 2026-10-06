@@ -79,7 +79,7 @@ export async function createCustomEmotion(
 ) {
   const name = nameInput.trim().slice(0, 60);
   const emoji = emojiInput.trim().slice(0, 20) || "◌";
-  if (!name || (category !== "positive" && category !== "negative")) return null;
+  if (!name || !["positive", "negative", "missing"].includes(category)) return null;
 
   const existing = await db.query.customEmotions.findFirst({
     where: eq(customEmotions.name, name),

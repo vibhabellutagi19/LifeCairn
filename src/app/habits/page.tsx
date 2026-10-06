@@ -5,6 +5,8 @@ import { Button, Card, EmptyState, Input, PageHeader, Select } from "@/component
 import { createHabit } from "@/lib/actions/habits";
 import { HabitCalendarGrid, type GridHabit } from "@/components/HabitCalendarGrid";
 import { Collapsible } from "@/components/Collapsible";
+import { HabitsShell } from "@/components/HabitsShell";
+import { HabitTodayView } from "@/components/HabitTodayView";
 import { computeHabitStats } from "@/lib/habitStats";
 import { currentMonthKey, daysInMonthISO, monthRangeISO, shiftMonthKey, todayISO } from "@/lib/dates";
 
@@ -55,12 +57,23 @@ export default async function HabitsPage({
   const nextMonth = shiftMonthKey(monthKey, 1);
 
   return (
-    <div>
+    <div className="pb-24 md:pb-0">
       <PageHeader
         title="Habit Tracker"
-        subtitle="Check in daily. Click any past day to backfill it."
+        subtitle="Check in daily. Tap a past day to backfill it."
       />
 
+      <HabitsShell
+        roadmaps={allRoadmaps.map((r) => ({ id: r.id, title: r.title }))}
+        today={
+          <HabitTodayView
+            habits={current.map(toGridHabit)}
+            today={today}
+            roadmaps={allRoadmaps.map((r) => ({ id: r.id, title: r.title }))}
+          />
+        }
+        month={
+          <>
       <Card className="mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -86,7 +99,7 @@ export default async function HabitsPage({
               This month
             </Link>
           </div>
-          <form action={createHabit} className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:w-auto xl:items-center">
+          <form action={createHabit} className="hidden w-full grid-cols-1 gap-2 sm:grid-cols-2 md:grid xl:flex xl:w-auto xl:items-center">
             <Input name="title" placeholder="New habit..." required className="w-full" />
             <Select name="roadmapId" defaultValue="" className="w-full">
               <option value="">No roadmap</option>
@@ -145,6 +158,9 @@ export default async function HabitsPage({
           ) : null}
         </div>
       )}
+          </>
+        }
+      />
     </div>
   );
 }

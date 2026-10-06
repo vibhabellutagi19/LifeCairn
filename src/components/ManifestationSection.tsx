@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { AffirmationCheckin } from "@/components/AffirmationCheckin";
-import {
-  EmotionalHourTracker,
-  type CustomEmotionDefinition,
-  type EmotionalCheckinEntry,
-} from "@/components/EmotionalHourTracker";
+import type { CustomEmotionDefinition, EmotionalCheckinEntry } from "@/components/EmotionalHourTracker";
 import { Badge, Card } from "@/components/ui";
 import type { AffirmationSlot } from "@/lib/actions/affirmations";
+import { customEmotionKey, EMOTIONS, formatHour } from "@/lib/emotions";
 
 export function ManifestationSection({
   date,
@@ -15,10 +12,7 @@ export function ManifestationSection({
   affirmationCheckins,
   affirmationStreak,
   emotionalCheckins,
-  trackingWindow,
   customEmotions,
-  defaultHour,
-  standalone = false,
 }: {
   date: string;
   journalContent?: string | null;
@@ -26,20 +20,30 @@ export function ManifestationSection({
   affirmationCheckins: Record<AffirmationSlot, boolean>;
   affirmationStreak: number;
   emotionalCheckins: EmotionalCheckinEntry[];
-  trackingWindow: { startHour: number; endHour: number };
   customEmotions: CustomEmotionDefinition[];
-  defaultHour: number;
-  standalone?: boolean;
 }) {
   const affirmationCheckinCount = Object.values(affirmationCheckins).filter(Boolean).length;
-  const Heading = standalone ? "h1" : "h2";
+
+  const emotionLookup = new Map<string, { label: string; emoji: string }>([
+    ...EMOTIONS.map((e) => [e.key, { label: e.label, emoji: e.emoji }] as const),
+    ...customEmotions.map((e) => [customEmotionKey(e.id), { label: e.name, emoji: e.emoji }] as const),
+  ]);
+  const weather = emotionalCheckins
+    .map((entry) => ({ hour: entry.hour, ...emotionLookup.get(entry.emotion) }))
+    .filter((entry): entry is { hour: number; label: string; emoji: string } => Boolean(entry.label));
+  const latest = weather[weather.length - 1];
+  const tally = new Map<string, { label: string; emoji: string; count: number }>();
+  for (const { label, emoji } of weather) {
+    tally.set(label, { label, emoji, count: (tally.get(label)?.count ?? 0) + 1 });
+  }
+  const top = [...tally.values()].sort((a, b) => b.count - a.count)[0];
 
   return (
-    <section aria-labelledby="manifestation-heading" className={standalone ? "" : "home-reveal home-delay-4 mt-8"}>
+    <section aria-labelledby="manifestation-heading" className="home-scroll mt-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-pink">Mind · feeling · intention</p>
-          <Heading id="manifestation-heading" className="font-display text-3xl font-bold sm:text-4xl">Manifestation</Heading>
+          <h2 id="manifestation-heading" className="font-display text-3xl font-bold sm:text-4xl"><span className="home-marker">Manifestation</span></h2>
           <p className="mt-1 max-w-2xl text-sm font-semibold leading-relaxed text-muted">
             Notice what you feel, choose what you reinforce, and leave yourself something honest.
           </p>
@@ -52,17 +56,29 @@ export function ManifestationSection({
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-pink">Every hour</p>
             <h2 className="font-display text-2xl font-bold">Emotional weather</h2>
-            <p className="mt-1 text-sm font-semibold text-muted">A quick check-in, not a judgment. Tap an hour and name the feeling.</p>
+            <p className="mt-1 text-sm font-semibold text-muted">Today’s highlights.</p>
           </div>
-          <span aria-hidden className="flex h-11 w-11 items-center justify-center rounded-full bg-pink/15 text-xl">◌</span>
+          <span aria-hidden className="home-emoji flex h-11 w-11 items-center justify-center rounded-full bg-pink/15 text-xl">◌</span>
         </div>
-        <EmotionalHourTracker
-          date={date}
-          entries={emotionalCheckins}
-          defaultHour={defaultHour}
-          trackingWindow={trackingWindow}
-          customEmotions={customEmotions}
-        />
+        {weather.length === 0 ? (
+          <p className="text-sm font-semibold text-muted">No check-ins yet today.</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {latest ? (
+              <Badge color="pink">
+                Now {latest.emoji} {latest.label} · {formatHour(latest.hour)}
+              </Badge>
+            ) : null}
+            {top && top.count > 1 ? (
+              <Badge color="muted">
+                Most often {top.emoji} {top.label} ×{top.count}
+              </Badge>
+            ) : null}
+          </div>
+        )}
+        <Link href="/manifestation" className="home-text-link mt-4 text-sm font-bold">
+          Open emotional weather <span aria-hidden>&rarr;</span>
+        </Link>
       </Card>
 
       <div className="mt-6 grid items-stretch gap-6 lg:grid-cols-2">
@@ -72,7 +88,7 @@ export function ManifestationSection({
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue">Reflect</p>
               <h2 className="font-display text-2xl font-bold">Journal</h2>
             </div>
-            <span aria-hidden className="flex h-10 w-10 items-center justify-center rounded-full bg-blue/10 text-lg">✎</span>
+            <span aria-hidden className="home-emoji flex h-10 w-10 items-center justify-center rounded-full bg-blue/10 text-lg">✎</span>
           </div>
           {journalContent ? (
             <div className="mb-4 flex flex-1 flex-col rounded-xl border-2 border-ink/15 bg-blue/5 p-4">

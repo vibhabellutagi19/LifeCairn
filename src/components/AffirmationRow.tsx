@@ -10,6 +10,8 @@ import {
 import { AFFIRMATION_SUBCATEGORIES } from "@/lib/affirmationSubcategories";
 import { EditAffirmationModal } from "@/components/EditAffirmationModal";
 import { CelebrateAffirmationModal } from "@/components/CelebrateAffirmationModal";
+import { affirmationLines } from "@/lib/affirmationText";
+import { burstConfetti } from "@/lib/confetti";
 
 export function AffirmationRow({
   id,
@@ -31,31 +33,45 @@ export function AffirmationRow({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="brut-border flex flex-wrap items-start gap-3 rounded-md bg-surface p-4 sm:flex-nowrap sm:gap-4">
+    <div className="aff-row brut-border flex flex-wrap items-start gap-3 rounded-md bg-surface p-4 sm:flex-nowrap sm:gap-4">
       <button
         type="button"
         aria-label={manifested ? "Manifested" : active ? "Deactivate" : "Activate"}
         disabled={isPending || manifested}
-        onClick={() =>
+        onClick={(event) => {
+          if (!active) burstConfetti(event.currentTarget, 10, ["✦", "✨"]);
           startTransition(() => {
             toggleAffirmationActive(id, !active);
-          })
-        }
+          });
+        }}
         className={clsx(
-          "brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded text-sm font-bold sm:mt-0.5 sm:h-7 sm:w-7",
+          "check-pop brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded text-sm font-bold sm:mt-0.5 sm:h-7 sm:w-7",
           manifested ? "bg-yellow text-ink" : active ? "bg-orange text-white" : "bg-surface"
         )}
       >
         {manifested ? "✨" : active ? "✓" : ""}
       </button>
       <div className="min-w-0 flex-1">
-        <p className={clsx(
-          "text-base font-semibold leading-7 text-ink md:text-lg",
-          !active && !manifested && "text-muted line-through",
-          manifested && "text-ink/75"
-        )}>
-          {text}
-        </p>
+        {(() => {
+          const lines = affirmationLines(text);
+          const textClass = clsx(
+            "text-base font-semibold leading-7 text-ink md:text-lg",
+            !active && !manifested && "text-muted line-through",
+            manifested && "text-ink/75"
+          );
+          return lines.length > 1 ? (
+            <ul className={clsx(textClass, "space-y-1")}>
+              {lines.map((line, i) => (
+                <li key={i} className="flex gap-2">
+                  <span aria-hidden className="text-sm text-orange">✦</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={textClass}>{text}</p>
+          );
+        })()}
         {manifested ? (
           <span className="mt-2 inline-flex rounded-full bg-yellow px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide">
             Manifested

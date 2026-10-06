@@ -97,7 +97,7 @@ export function Badge({
   return (
     <span
       className={clsx(
-        "brut-border inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide",
+        "brut-border inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide",
         colors[color],
         className
       )}
@@ -170,7 +170,7 @@ export function ProgressBar({
   return (
     <div className="brut-border h-4 w-full overflow-hidden rounded-full bg-surface">
       <div
-        className={clsx("h-full transition-all", colors[color])}
+        className={clsx("progress-fill h-full transition-all", colors[color])}
         style={{ width: `${clamped}%` }}
       />
     </div>

@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/roadmaps", label: "Roadmaps", emoji: "🗺️" },
   { href: "/projects", label: "Projects", emoji: "🧩" },
   { href: "/habits", label: "Habit Tracker", emoji: "🔥" },
+  { href: "/pomodoro", label: "Pomodoro", emoji: "🍅" },
   { href: "/manifestation", label: "Manifestation", emoji: "◌" },
   { href: "/finance", label: "Finance", emoji: "💰" },
   { href: "/review", label: "Review", emoji: "📊" },
