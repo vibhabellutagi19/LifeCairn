@@ -2594,10 +2594,376 @@ textarea {
   }
 }
 
+/* Phone-only controls. Unlayered component CSS beats Tailwind's md:hidden, so hide them here. */
 @media (min-width: 768px) {
-  .hab-sheet {
+  .hab-sheet,
+  .hab-tabs,
+  .hab-fab {
     display: none;
   }
+}
+
+/* Review */
+.rv-hero {
+  isolation: isolate;
+  border: 3px solid var(--ink);
+  box-shadow: 8px 8px 0 0 var(--green);
+  background:
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--green) 30%, transparent), transparent 45%),
+    radial-gradient(circle at 5% 95%, color-mix(in srgb, var(--orange) 20%, transparent), transparent 40%),
+    var(--ink);
+}
+
+.rv-switch {
+  display: inline-flex;
+  padding: 4px;
+  border: 2px solid rgb(255 255 255 / 0.25);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.rv-switch-btn {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(255 255 255 / 0.7);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.rv-switch-btn.is-active {
+  background: var(--green);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.rv-nav {
+  display: inline-flex;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgb(255 255 255 / 0.25);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  font-weight: 800;
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+
+.rv-nav:hover {
+  transform: translateY(-2px);
+  background: rgb(255 255 255 / 0.18);
+}
+
+.rv-delta {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+.rv-cell {
+  height: 2.25rem;
+  min-width: 2.25rem;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--c) calc(var(--l) * 75%), var(--background));
+  border: 1.5px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  animation: home-day-pop 380ms ease-out backwards;
+  transition: transform 150ms ease;
+}
+
+.rv-cell:hover {
+  transform: scale(1.12);
+}
+
+.rv-cell.is-today {
+  border-color: var(--ink);
+  border-width: 2px;
+}
+
+.rv-cell.is-future {
+  background: repeating-linear-gradient(45deg, transparent 0 4px, color-mix(in srgb, var(--ink) 6%, transparent) 4px 6px);
+}
+
+/* Habit goals + rewards */
+.hab-goal-bar {
+  background: var(--green);
+  transition: width 500ms cubic-bezier(0.3, 1, 0.4, 1);
+}
+
+.hab-goal-bar.is-reached {
+  background: linear-gradient(90deg, var(--yellow), var(--orange), var(--yellow));
+  background-size: 200% 100%;
+  animation: mood-gradient 2.5s linear infinite;
+}
+
+.hab-goal-pct {
+  display: inline-block;
+  animation: hab-check-pop 360ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.hab-reward {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  border-radius: 999px;
+  background: var(--background);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--ink) 65%, transparent);
+}
+
+.hab-reward.is-ready {
+  border-color: var(--ink);
+  background: var(--yellow);
+  color: var(--ink);
+  animation: rw-wiggle 1.6s ease-in-out infinite;
+}
+
+.hab-reward.is-taken {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.rw-card {
+  padding: 1rem;
+  border: 3px solid var(--ink);
+  border-radius: 1.1rem;
+  background: var(--surface);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  animation: home-day-pop 420ms ease-out backwards;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.rw-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--ink);
+}
+
+.rw-card.is-unlocked {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--yellow) 70%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: 4px 4px 0 0 var(--orange), 0 0 24px 2px color-mix(in srgb, var(--yellow) 55%, transparent);
+}
+
+.rw-card.is-claimed {
+  background: color-mix(in srgb, var(--green) 10%, var(--surface));
+  box-shadow: 4px 4px 0 0 var(--green);
+}
+
+.rw-card.is-locked .rw-icon,
+.rw-card.is-no-goal .rw-icon {
+  filter: grayscale(0.4);
+}
+
+.rw-icon {
+  display: flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  border-radius: 0.9rem;
+  background: var(--background);
+  font-size: 1.4rem;
+}
+
+.rw-card.is-unlocked .rw-icon {
+  background: var(--yellow);
+  animation: rw-wiggle 1.6s ease-in-out infinite;
+}
+
+.rw-bar {
+  background: var(--green);
+  transition: width 600ms ease;
+}
+
+.rw-card.is-unlocked .rw-bar,
+.rw-card.is-claimed .rw-bar {
+  background: linear-gradient(90deg, var(--yellow), var(--orange));
+}
+
+.rw-claim {
+  display: inline-flex;
+  min-height: 2.75rem;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: var(--orange);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.rw-claim:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 0 var(--ink);
+}
+
+.rw-claim:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 0 var(--ink);
+}
+
+.rw-new {
+  min-height: 2.75rem;
+  width: 100%;
+  border: 2px dashed color-mix(in srgb, var(--ink) 35%, transparent);
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--muted);
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.rw-new:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--yellow) 25%, transparent);
+  color: var(--ink);
+}
+
+.rw-add {
+  animation: pomo-tip-in 260ms ease-out both;
+}
+
+.rw-ready {
+  animation: rw-wiggle 1.6s ease-in-out infinite;
+}
+
+@keyframes rw-wiggle {
+  0%,
+  80%,
+  100% {
+    transform: rotate(0deg);
+  }
+  85% {
+    transform: rotate(-6deg);
+  }
+  90% {
+    transform: rotate(6deg);
+  }
+  95% {
+    transform: rotate(-3deg);
+  }
+}
+
+/* Dashboard → Pomodoro shortcuts */
+.focus-tomato {
+  display: flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font-size: 1.15rem;
+  transition: transform 160ms cubic-bezier(0.3, 1.6, 0.5, 1), border-color 160ms ease, background-color 160ms ease;
+}
+
+.focus-tomato:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--orange) 15%, var(--surface));
+  transform: rotate(-12deg) scale(1.12);
+}
+
+@media (min-width: 640px) {
+  .focus-tomato {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
+.focus-pill {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.75rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orange) 12%, var(--surface));
+  color: var(--ink);
+  letter-spacing: 0.04em;
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+
+.focus-pill:hover {
+  transform: translateY(-1px);
+  background: var(--orange);
+  color: #fff;
+}
+
+@media (min-width: 640px) {
+  .focus-pill {
+    min-height: 1.75rem;
+  }
+}
+
+/* Overdue / carried-over tasks */
+.overdue-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.45rem;
+  border: 1.5px solid var(--pink);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pink) 12%, var(--surface));
+  color: var(--pink);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.move-today {
+  display: inline-flex;
+  min-height: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0 0.7rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+
+.move-today:hover {
+  transform: translateX(2px);
+  background: var(--yellow);
+}
+
+@media (min-width: 640px) {
+  .move-today {
+    min-height: 2rem;
+  }
+}
+
+.carried-over {
+  animation: pomo-tip-in 360ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2611,6 +2977,13 @@ textarea {
   .home-day,
   .home-spark,
   .pomodoro-bounce,
+  .hab-goal-bar.is-reached,
+  .hab-goal-pct,
+  .hab-reward.is-ready,
+  .rw-card,
+  .rw-card.is-unlocked .rw-icon,
+  .rw-ready,
+  .rv-cell,
   .hab-card,
   .hab-check.is-on,
   .hab-sheet[open],

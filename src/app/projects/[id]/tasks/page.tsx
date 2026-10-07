@@ -44,7 +44,8 @@ export default async function ProjectTasksPage({
         action={
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-bold text-muted">
-              {tasks.filter((t) => t.status === "done").length}/{tasks.length} done
+              {tasks.filter((t) => t.status === "done").length}/{tasks.filter((t) => t.status !== "backlog").length} done
+              {tasks.some((t) => t.status === "backlog") ? ` · ${tasks.filter((t) => t.status === "backlog").length} in backlog` : ""}
             </span>
             <NewProjectTaskModal
               projectId={id}

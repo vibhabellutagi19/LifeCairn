@@ -6,6 +6,7 @@ import type { GridHabit } from "@/components/HabitCalendarGrid";
 import { deleteHabit, toggleHabitActive, toggleHabitLog, updateHabit } from "@/lib/actions/habits";
 import { burstConfetti } from "@/lib/confetti";
 import { shiftDateISO } from "@/lib/dates";
+import { goalProgress } from "@/lib/habitGoals";
 
 type Toggle = { habitId: number; date: string; checked: boolean };
 
@@ -64,7 +65,14 @@ export function HabitTodayView({
 
   function toggle(habit: GridHabit, source: Element) {
     const next = !isChecked(habit.id, selected);
-    if (next) {
+    const monthKey = selected.slice(0, 7);
+    const before = goalProgress(checkedDates[habit.id] ?? [], monthKey, habit.targetDays);
+    const after = goalProgress([...(checkedDates[habit.id] ?? []), selected], monthKey, habit.targetDays);
+    if (next && !before.reached && after.reached) {
+      // This tap completes the monthly goal: a bigger celebration, and rewards unlock.
+      vibrate(80);
+      burstConfetti(source, 44, ["🏆", "🎁", "🎉", "✨", "💛"]);
+    } else if (next) {
       vibrate(12);
       burstConfetti(source, 10, ["✦", "✨", "🔥"]);
     }
@@ -153,6 +161,7 @@ export function HabitTodayView({
             today={today}
             checked={isChecked(habit.id, selected)}
             history={week.map((date) => ({ date, done: isChecked(habit.id, date) }))}
+            goal={goalProgress(checkedDates[habit.id] ?? [], selected.slice(0, 7), habit.targetDays)}
             onToggle={toggle}
             roadmaps={roadmaps}
           />
@@ -169,6 +178,7 @@ function HabitCard({
   today,
   checked,
   history,
+  goal,
   onToggle,
   roadmaps,
 }: {
@@ -178,6 +188,7 @@ function HabitCard({
   today: string;
   checked: boolean;
   history: { date: string; done: boolean }[];
+  goal: ReturnType<typeof goalProgress>;
   onToggle: (habit: GridHabit, source: Element) => void;
   roadmaps: { id: number; title: string }[];
 }) {
@@ -187,7 +198,9 @@ function HabitCard({
   const [title, setTitle] = useState(habit.title);
   const [roadmapId, setRoadmapId] = useState(habit.roadmapId ? String(habit.roadmapId) : "");
   const [endDate, setEndDate] = useState(habit.endDate ?? "");
+  const [targetDays, setTargetDays] = useState(habit.targetDays ? String(habit.targetDays) : "");
   const [isPending, startTransition] = useTransition();
+  const monthKey = selected.slice(0, 7);
 
   // Streak shown is the server's, nudged by today's optimistic tap so it feels instant.
   const serverToday = habit.checkedDates.includes(today);
@@ -219,6 +232,31 @@ function HabitCard({
               </span>
               {streak > 0 ? <span className="text-xs font-bold text-orange">🔥 {streak}</span> : null}
             </span>
+            {goal.target ? (
+              <span className="mt-2 block">
+                <span className="mb-0.5 flex justify-between text-[11px] font-bold">
+                  <span className={goal.reached ? "text-green" : "text-ink/70"}>
+                    {goal.reached ? "🏆 Goal reached" : `${goal.done}/${goal.target} days this month`}
+                  </span>
+                  <span key={goal.percent} className="hab-goal-pct">{goal.percent}%</span>
+                </span>
+                <span className="block h-2 overflow-hidden rounded-full border-[1.5px] border-ink bg-surface">
+                  <span className={clsx("hab-goal-bar block h-full", goal.reached && "is-reached")} style={{ width: `${Math.min(100, goal.percent)}%` }} />
+                </span>
+              </span>
+            ) : null}
+            {habit.rewards.length > 0 ? (
+              <span className="mt-2 flex flex-wrap gap-1">
+                {habit.rewards.map((reward) => {
+                  const taken = reward.claimedMonths.includes(monthKey);
+                  return (
+                    <span key={reward.id} className={clsx("hab-reward", goal.reached && !taken && "is-ready", taken && "is-taken")}>
+                      {taken ? "✅" : goal.reached ? "🎁" : "🔒"} {reward.title}
+                    </span>
+                  );
+                })}
+              </span>
+            ) : null}
           </span>
         </button>
         <button
@@ -243,7 +281,12 @@ function HabitCard({
               onSubmit={(event) => {
                 event.preventDefault();
                 startTransition(async () => {
-                  await updateHabit(habit.id, { title, roadmapId: roadmapId ? Number(roadmapId) : null, endDate: endDate || null });
+                  await updateHabit(habit.id, {
+                    title,
+                    roadmapId: roadmapId ? Number(roadmapId) : null,
+                    endDate: endDate || null,
+                    targetDays: targetDays ? Number(targetDays) : null,
+                  });
                   setEditing(false);
                   setMenu(false);
                 });
@@ -258,6 +301,19 @@ function HabitCard({
                   </option>
                 ))}
               </select>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-muted">
+                Monthly goal (days, optional)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={31}
+                  value={targetDays}
+                  onChange={(e) => setTargetDays(e.target.value)}
+                  placeholder="e.g. 20"
+                  className="hab-input mt-1 normal-case"
+                />
+              </label>
               <label className="block text-[10px] font-bold uppercase tracking-wide text-muted">
                 Ends (optional)
                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="hab-input mt-1 normal-case" />

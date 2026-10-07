@@ -29,3 +29,11 @@ export async function deleteTask(id: number) {
   await db.delete(tasks).where(eq(tasks.id, id));
   revalidateAll();
 }
+
+/** Carries an unfinished task over to another day (e.g. an overdue one into today). */
+export async function moveTaskToDate(id: number, date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  await db.update(tasks).set({ date }).where(eq(tasks.id, id));
+  revalidateAll();
+  revalidatePath("/pomodoro");
+}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases } from "@/db/schema";
+import type { ProjectTaskStatus } from "@/lib/taskStatus";
 
 function revalidateAll(projectId?: number) {
   revalidatePath("/projects");
@@ -127,6 +128,7 @@ export async function createProjectTask(projectId: number, formData: FormData) {
   const startDate = String(formData.get("startDate") || "") || null;
   const dueDate = String(formData.get("dueDate") || "") || null;
   const estHoursRaw = String(formData.get("estHours") || "").trim();
+  const toBacklog = formData.get("backlog") === "on";
   const notes = String(formData.get("notes") || "").trim();
 
   await db.insert(projectTasks).values({
@@ -139,6 +141,7 @@ export async function createProjectTask(projectId: number, formData: FormData) {
     dueDate,
     estHours: estHoursRaw || null,
     notes: notes || null,
+    ...(toBacklog ? { status: "backlog" as const } : {}),
   });
 
   revalidateAll(projectId);
@@ -167,7 +170,7 @@ export async function updateProjectTaskDetails(
 export async function setProjectTaskStatus(
   id: number,
   projectId: number,
-  status: "not_started" | "in_progress" | "blocked" | "done"
+  status: ProjectTaskStatus
 ) {
   await db
     .update(projectTasks)

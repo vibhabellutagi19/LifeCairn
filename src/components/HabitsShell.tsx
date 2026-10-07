@@ -81,6 +81,10 @@ export function HabitsShell({
             ))}
           </select>
           <label className="block text-[11px] font-bold uppercase tracking-wide text-muted">
+            Monthly goal: days (optional)
+            <input type="number" name="targetDays" inputMode="numeric" min={1} max={31} placeholder="e.g. 20" className="hab-input mt-1 normal-case" />
+          </label>
+          <label className="block text-[11px] font-bold uppercase tracking-wide text-muted">
             Ends (optional)
             <input type="date" name="endDate" className="hab-input mt-1 normal-case" />
           </label>

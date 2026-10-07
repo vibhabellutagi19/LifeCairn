@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { clsx } from "clsx";
 import { CatSvg } from "@/components/HomeCat";
 import { Card, Select } from "@/components/ui";
@@ -211,6 +212,7 @@ function completePhase(s: State, ms: Durations, sessionsToday: number) {
   const finishedFocus = s.mode === "focus";
   const mode: Mode = finishedFocus ? breakAfter(sessionsToday + 1) : "focus";
   if (finishedFocus) {
+    // Only project tasks are linked by id; "daily:<id>" parses to NaN and is stored by title.
     const taskId = Number(s.taskId) || null;
     logPomodoroSession(todayISO(), (s.phaseMs ?? ms.focus) / 60_000, taskId, s.taskTitle || null).catch(() => {});
   }
@@ -254,15 +256,25 @@ function formatClock(ms: number) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-export type PomodoroTask = { id: number; title: string; projectName: string };
+/**
+ * A task you can focus on. Project tasks use their numeric id (so saved sessions link to them);
+ * dashboard (daily) tasks use "daily:<id>" and are saved by title only.
+ */
+export type PomodoroTask = { id: string; title: string; group: "overdue" | "today" | "project"; detail?: string };
 export type PomodoroTodaySession = { id: number; minutes: number; taskTitle: string | null; completedAt: string };
 
 export function PomodoroTimer({
   tasks,
   durations,
   todaySessions,
+  initialTaskId,
+  autoStart = false,
 }: {
   tasks: PomodoroTask[];
+  /** Task to select when arriving from a dashboard 🍅 link. */
+  initialTaskId?: string;
+  /** Start a focus session right away (unless a timer is already running). */
+  autoStart?: boolean;
   /** Minutes per mode, from saved settings. */
   durations: Durations;
   todaySessions: PomodoroTodaySession[];
@@ -297,13 +309,44 @@ export function PomodoroTimer({
   const progress = Math.min(1, Math.max(0, 1 - remaining / total));
   const isBreak = state.mode !== "focus";
   const urgent = running && remaining <= 10_000;
-  const task = tasks.find((t) => String(t.id) === state.taskId);
+  const task = tasks.find((t) => t.id === state.taskId);
   const tips = isBreak ? BREAK_TIPS : FOCUS_TIPS;
   const tipIndex = Math.floor((total - remaining) / 90_000) % tips.length;
   const headAngle = -Math.PI / 2 + (1 - progress) * 2 * Math.PI;
   const setCount = state.mode === "long" && sessionsToday > 0 && sessionsToday % 4 === 0 ? 4 : sessionsToday % 4;
   const focusedMinutes = todaySessions.reduce((sum, session) => sum + session.minutes, 0);
   const clock = formatClock(remaining);
+
+  // Arriving from a dashboard 🍅 link: pick that task and (if idle) start focusing, then clean the URL
+  // so a reload doesn't do it again.
+  const router = useRouter();
+  const pathname = usePathname();
+  const handledLink = useRef(false);
+  useEffect(() => {
+    if (handledLink.current || !initialTaskId) return;
+    handledLink.current = true;
+    const picked = tasks.find((t) => t.id === initialTaskId);
+    const current = readState();
+    if (current.endsAt !== null) {
+      // A timer is already running: don't interrupt it, just switch what it's for.
+      writeState({ ...current, taskId: initialTaskId, taskTitle: picked?.title ?? "" });
+    } else if (autoStart) {
+      const ms = live.current.ms;
+      writeState({
+        ...current,
+        mode: "focus",
+        taskId: initialTaskId,
+        taskTitle: picked?.title ?? "",
+        endsAt: nowMs() + ms.focus,
+        remaining: null,
+        phaseMs: ms.focus,
+      });
+      unlockAudio().catch(() => {});
+    } else {
+      writeState({ ...current, taskId: initialTaskId, taskTitle: picked?.title ?? "" });
+    }
+    router.replace(pathname, { scroll: false });
+  }, [initialTaskId, autoStart, tasks, router, pathname]);
 
   // Unlock audio on the first click or key press anywhere on the page.
   const [audioReady, setAudioReady] = useState(false);
@@ -615,17 +658,29 @@ export function PomodoroTimer({
                 id="pomodoro-task"
                 value={task ? state.taskId : ""}
                 onChange={(event) => {
-                  const picked = tasks.find((t) => String(t.id) === event.target.value);
+                  const picked = tasks.find((t) => t.id === event.target.value);
                   writeState({ ...state, taskId: event.target.value, taskTitle: picked?.title ?? "" });
                 }}
                 className="text-ink"
               >
                 <option value="">Anything that matters</option>
-                {tasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title} · {t.projectName}
-                  </option>
-                ))}
+                {([
+                  ["overdue", "⚠ Overdue"],
+                  ["today", "Today’s plan"],
+                  ["project", "Project tasks"],
+                ] as const).map(([group, label]) => {
+                  const options = tasks.filter((t) => t.group === group);
+                  return options.length ? (
+                    <optgroup key={group} label={label}>
+                      {options.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                          {t.detail ? ` · ${t.detail}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null;
+                })}
               </Select>
             </div>
 

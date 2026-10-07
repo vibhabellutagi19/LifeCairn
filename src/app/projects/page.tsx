@@ -29,7 +29,7 @@ export default async function ProjectsPage() {
       .from(projectTasks)
       .innerJoin(projects, eq(projectTasks.projectId, projects.id))
       .where(
-        and(ne(projectTasks.status, "done"), ne(projectTasks.status, "blocked"))
+        and(ne(projectTasks.status, "done"), ne(projectTasks.status, "blocked"), ne(projectTasks.status, "backlog"))
       ),
   ]);
 

@@ -7,6 +7,7 @@ import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { formatDateShort } from "@/lib/format";
 import { currentMonthKey, monthRangeISO, todayISO, weekRangeISO } from "@/lib/dates";
+import { isOpenTask } from "@/lib/taskStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,8 @@ export default async function ProjectDetailPage({
 
   const shipped = projectReleases.filter((r) => r.status === "released").length;
   const done = tasks.filter((t) => t.status === "done").length;
-  const activeTasks = tasks.filter((t) => t.status !== "done").slice(0, 6);
+  const backlogCount = tasks.filter((t) => t.status === "backlog").length;
+  const activeTasks = tasks.filter((t) => isOpenTask(t.status)).slice(0, 6);
 
   const today = todayISO();
   const week = weekRangeISO(today);
@@ -63,10 +65,10 @@ export default async function ProjectDetailPage({
     Boolean(date && date >= start && date <= end);
 
   const tasksDueThisWeek = tasks.filter(
-    (t) => t.status !== "done" && inRange(t.dueDate, week.start, week.end)
+    (t) => isOpenTask(t.status) && inRange(t.dueDate, week.start, week.end)
   ).length;
   const tasksDueThisMonth = tasks.filter(
-    (t) => t.status !== "done" && inRange(t.dueDate, month.start, month.end)
+    (t) => isOpenTask(t.status) && inRange(t.dueDate, month.start, month.end)
   ).length;
   const releasesThisWeek = projectReleases.filter(
     (r) => r.status !== "released" && inRange(r.targetDate, week.start, week.end)
@@ -105,7 +107,9 @@ export default async function ProjectDetailPage({
         <Card>
           <p className="text-xs font-bold uppercase tracking-wide text-muted">Tasks</p>
           <p className="font-display text-2xl font-bold">{tasks.length}</p>
-          <p className="text-xs font-semibold text-muted">{done} completed</p>
+          <p className="text-xs font-semibold text-muted">
+            {done} completed{backlogCount ? ` · ${backlogCount} in backlog` : ""}
+          </p>
         </Card>
         <Card>
           <p className="text-xs font-bold uppercase tracking-wide text-muted">Due this week</p>
@@ -179,7 +183,7 @@ export default async function ProjectDetailPage({
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-xl font-bold">Tasks</h2>
             <span className="text-sm font-bold text-muted">
-              {done}/{tasks.length} done
+              {done}/{tasks.length - backlogCount} done
             </span>
           </div>
           {tasks.length === 0 ? (

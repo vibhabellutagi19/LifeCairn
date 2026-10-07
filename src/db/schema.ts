@@ -43,6 +43,8 @@ export const projectTaskStatus = pgEnum("project_task_status", [
   "in_progress",
   "blocked",
   "done",
+  // Parked for later: hidden from every "what's next" view until brought back.
+  "backlog",
 ]);
 
 export const taskPriority = pgEnum("task_priority", ["low", "medium", "high"]);
@@ -324,6 +326,9 @@ export const habits = pgTable("habits", {
   // so they drop off the active list on their own. Separate from `active`,
   // which is a manual pause/resume toggle for habits you might pick back up.
   endDate: date("end_date"),
+  // Optional monthly goal: how many days a month this habit should be done
+  // (e.g. walk on 20 days). Progress is derived from habit_logs each month.
+  targetDays: integer("target_days"),
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -377,3 +382,28 @@ export const hooponoponoRounds = pgTable("hooponopono_rounds", {
   note: text("note"),
   completedAt: timestamp("completed_at").notNull().defaultNow(),
 });
+
+// Self-chosen rewards attached to a habit. A reward unlocks in any month the
+// habit reaches its monthly goal (habits.target_days).
+export const habitRewards = pgTable("habit_rewards", {
+  id: serial("id").primaryKey(),
+  habitId: integer("habit_id")
+    .notNull()
+    .references(() => habits.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 200 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A reward taken for a given month ("yyyy-MM"); at most once per month.
+export const habitRewardClaims = pgTable(
+  "habit_reward_claims",
+  {
+    id: serial("id").primaryKey(),
+    rewardId: integer("reward_id")
+      .notNull()
+      .references(() => habitRewards.id, { onDelete: "cascade" }),
+    month: varchar("month", { length: 7 }).notNull(),
+    claimedAt: timestamp("claimed_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.rewardId, table.month)]
+);

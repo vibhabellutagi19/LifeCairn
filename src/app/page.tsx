@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   affirmationCheckins,
@@ -32,6 +32,7 @@ import { computeHabitStats } from "@/lib/habitStats";
 import { computeAffirmationStats } from "@/lib/affirmationStats";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
 import { formatDateLong, formatDateShort, formatEUR, formatINR } from "@/lib/format";
+import { isOpenTask } from "@/lib/taskStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ export default async function DashboardPage({
     allProjectTasks,
     activeHabits,
     allHabitLogs,
+    leftoverTasks,
   ] = await Promise.all([
     db
       .select()
@@ -128,12 +130,31 @@ export default async function DashboardPage({
       .innerJoin(projects, eq(projectTasks.projectId, projects.id)),
     db.select().from(habits).where(eq(habits.active, true)).orderBy(habits.sortOrder, habits.id),
     db.select().from(habitLogs),
+    // Unfinished dashboard tasks from the last two weeks, carried over as overdue.
+    db
+      .select()
+      .from(tasks)
+      .where(and(gte(tasks.date, shiftDateISO(today, -14)), lt(tasks.date, today), eq(tasks.completed, false)))
+      .orderBy(tasks.date, tasks.sortOrder, tasks.id),
   ]);
 
   const activeHabitsToday = activeHabits.filter((h) => !h.endDate || h.endDate >= today);
 
   const selectedTasks = weekTasks.filter((task) => task.date === selectedDate);
   const selectedProjectTasks = allProjectTasks.filter((task) => isActiveOnDate(task, selectedDate));
+  // The plan only lists project work that is still open; done tasks still count towards progress.
+  // Viewing today also pulls in project tasks whose due date has passed, so overdue work
+  // doesn't silently drop off once its start/due window closes.
+  const overdueProjectTasks =
+    selectedDate === today
+      ? allProjectTasks.filter(
+          (task) => isOpenTask(task.status) && task.dueDate && task.dueDate < today && !selectedProjectTasks.includes(task)
+        )
+      : [];
+  const openProjectTasks = [
+    ...overdueProjectTasks,
+    ...selectedProjectTasks.filter((task) => isOpenTask(task.status)),
+  ];
   const selectedTaskCount = selectedTasks.length + selectedProjectTasks.length;
   const completedCount =
     selectedTasks.filter((task) => task.completed).length +
@@ -154,7 +175,7 @@ export default async function DashboardPage({
     : 0;
   const affirmationStats = computeAffirmationStats(affirmationCheckinRows, today);
   const focusTask = rankFocusTasks(
-    allProjectTasks.filter((task) => task.status !== "done" && task.status !== "blocked")
+    allProjectTasks.filter((task) => isOpenTask(task.status) && task.status !== "blocked")
   )[0];
   const catNudges = buildCatNudges({
     today,
@@ -208,6 +229,7 @@ export default async function DashboardPage({
             </p>
             <nav aria-label="Quick actions" className="mt-7 flex flex-wrap gap-2">
               {[
+                { href: "/pomodoro", icon: "🍅", label: "Focus" },
                 { href: "/projects", icon: "🧩", label: "Projects" },
                 { href: "/manifestation", icon: "◌", label: "Manifestation" },
                 { href: "/finance", icon: "💰", label: "Finance" },
@@ -288,7 +310,7 @@ export default async function DashboardPage({
             <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {weekDays.map((date) => {
                 const dailyCount = weekTasks.filter((task) => task.date === date).length;
-                const rangedCount = allProjectTasks.filter((task) => isActiveOnDate(task, date)).length;
+                const rangedCount = allProjectTasks.filter((task) => isOpenTask(task.status) && isActiveOnDate(task, date)).length;
                 const taskCount = dailyCount + rangedCount;
                 const isSelected = date === selectedDate;
                 const isToday = date === today;
@@ -343,6 +365,29 @@ export default async function DashboardPage({
             </Badge>
           </div>
 
+          {selectedDate === today && leftoverTasks.length > 0 ? (
+            <div className="carried-over mb-5 rounded-xl border-2 border-pink/40 bg-pink/5 p-3 sm:p-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-pink">⚠ Carried over</p>
+                <Badge color="pink">{leftoverTasks.length} overdue</Badge>
+              </div>
+              <div className="space-y-2">
+                {leftoverTasks.map((task) => (
+                  <TaskRow
+                    key={`left-${task.id}`}
+                    id={task.id}
+                    title={task.title}
+                    completed={task.completed}
+                    overdue
+                    tag={`Overdue · planned ${formatDateShort(task.date)}`}
+                    moveToDate={today}
+                    focusHref={`/pomodoro?task=daily:${task.id}&start=1`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {selectedTaskCount === 0 ? (
             <div className="mt-5 grid items-center gap-4 rounded-xl border-2 border-dashed border-ink/25 bg-yellow/20 p-4 sm:p-5 lg:grid-cols-[minmax(0,0.75fr)_minmax(24rem,1.25fr)]">
               <div className="flex items-start gap-3">
@@ -372,20 +417,26 @@ export default async function DashboardPage({
               </form>
               <div className="space-y-2">
                 {selectedTasks.map((task) => (
-                  <TaskRow key={task.id} id={task.id} title={task.title} completed={task.completed} />
+                  <TaskRow
+                    key={task.id}
+                    id={task.id}
+                    title={task.title}
+                    completed={task.completed}
+                    focusHref={selectedDate === today ? `/pomodoro?task=daily:${task.id}&start=1` : undefined}
+                  />
                 ))}
               </div>
             </>
           )}
 
-          {selectedProjectTasks.length > 0 ? (
+          {openProjectTasks.length > 0 ? (
             <div className="mt-5 border-t-2 border-dashed border-ink/20 pt-5">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">In motion from projects</p>
-                <Badge color="muted">{selectedProjectTasks.length}</Badge>
+                <Badge color="muted">{openProjectTasks.length}</Badge>
               </div>
               <div className="space-y-2">
-                {selectedProjectTasks.map((task) => (
+                {openProjectTasks.map((task) => (
                   <ProjectTaskRow
                     key={`pt-${task.id}`}
                     id={task.id}
@@ -399,6 +450,7 @@ export default async function DashboardPage({
                     notes={task.notes}
                     projectName={task.projectName}
                     detailHref={`/projects/${task.projectId}/tasks/${task.branchName || task.id}`}
+                    focusHref={`/pomodoro?task=${task.id}&start=1`}
                   />
                 ))}
               </div>

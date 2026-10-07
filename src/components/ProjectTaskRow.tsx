@@ -12,12 +12,15 @@ import {
 } from "@/lib/actions/projects";
 import { Button, Input } from "@/components/ui";
 import { formatDateShort } from "@/lib/format";
+import { todayISO } from "@/lib/dates";
+import { isOpenTask, type ProjectTaskStatus } from "@/lib/taskStatus";
 
 const STATUS_SELECT_COLOR: Record<string, string> = {
   not_started: "bg-background text-muted",
   in_progress: "bg-orange text-white",
   blocked: "bg-pink text-white",
   done: "bg-green text-white",
+  backlog: "bg-ink/10 text-ink/60",
 };
 
 const PRIORITY_COLOR: Record<string, "muted" | "orange" | "pink"> = {
@@ -41,12 +44,13 @@ export function ProjectTaskRow({
   releases,
   projectName,
   detailHref,
+  focusHref,
 }: {
   id: number;
   projectId: number;
   title: string;
   priority: "low" | "medium" | "high";
-  status: "not_started" | "in_progress" | "blocked" | "done";
+  status: ProjectTaskStatus;
   startDate?: string | null;
   dueDate: string | null;
   estHours: string | null;
@@ -56,14 +60,17 @@ export function ProjectTaskRow({
   releases?: { id: number; name: string }[];
   projectName?: string | null;
   detailHref?: string;
+  /** When set, shows a "🍅 Focus" link that opens the Pomodoro on this task. */
+  focusHref?: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [editingDates, setEditingDates] = useState(false);
+  const overdue = Boolean(dueDate && isOpenTask(status) && dueDate < todayISO());
   const [startVal, setStartVal] = useState(startDate ?? "");
   const [dueVal, setDueVal] = useState(dueDate ?? "");
 
   return (
-    <div className={clsx("brut-border rounded-md bg-surface p-3", status === "done" && "bg-green/10")}>
+    <div className={clsx("brut-border rounded-md bg-surface p-3", status === "done" && "bg-green/10", status === "backlog" && "border-dashed bg-background opacity-80")}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         {detailHref ? (
           <Link
@@ -106,7 +113,7 @@ export function ProjectTaskRow({
                 setProjectTaskStatus(
                   id,
                   projectId,
-                  event.target.value as "not_started" | "in_progress" | "blocked" | "done"
+                  event.target.value as ProjectTaskStatus
                 );
               })
             }
@@ -119,6 +126,7 @@ export function ProjectTaskRow({
             <option value="in_progress">In progress</option>
             <option value="blocked">Blocked</option>
             <option value="done">Done</option>
+            <option value="backlog">📥 Backlog</option>
           </select>
           <button
             type="button"
@@ -138,6 +146,26 @@ export function ProjectTaskRow({
       {notes ? <p className="mt-1 text-sm text-ink/80">{notes}</p> : null}
 
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
+        {status === "backlog" ? (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() =>
+              startTransition(() => {
+                setProjectTaskStatus(id, projectId, "not_started");
+              })
+            }
+            className="focus-pill"
+            title="Move out of the backlog, back to Not started"
+          >
+            ↩ Bring back
+          </button>
+        ) : null}
+        {focusHref && isOpenTask(status) ? (
+          <Link href={focusHref} className="focus-pill" title="Start a pomodoro on this task">
+            <span aria-hidden>🍅</span> Focus
+          </Link>
+        ) : null}
         {projectName ? <span>{projectName}</span> : null}
         {releases ? (
           <select
@@ -228,6 +256,11 @@ export function ProjectTaskRow({
               : dueDate
                 ? `Due ${formatDateShort(dueDate)} (no start date)`
                 : "Set start / end date"}
+          {overdue ? (
+            <span className="overdue-badge ml-2" suppressHydrationWarning>
+              ⚠ Overdue
+            </span>
+          ) : null}
         </button>
       )}
     </div>

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { db } from "@/db";
-import { habitLogs, habits, roadmaps } from "@/db/schema";
+import { habitLogs, habitRewardClaims, habitRewards, habits, roadmaps } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader, Select } from "@/components/ui";
 import { createHabit } from "@/lib/actions/habits";
 import { HabitCalendarGrid, type GridHabit } from "@/components/HabitCalendarGrid";
 import { Collapsible } from "@/components/Collapsible";
 import { HabitsShell } from "@/components/HabitsShell";
 import { HabitTodayView } from "@/components/HabitTodayView";
+import { RewardShelf } from "@/components/RewardShelf";
 import { computeHabitStats } from "@/lib/habitStats";
 import { currentMonthKey, daysInMonthISO, monthRangeISO, shiftMonthKey, todayISO } from "@/lib/dates";
 
@@ -25,10 +26,12 @@ export default async function HabitsPage({
   const elapsedDaysInMonth =
     range.start > today ? 0 : range.end < today ? monthDays.length : monthDays.indexOf(today) + 1;
 
-  const [allHabits, allLogs, allRoadmaps] = await Promise.all([
+  const [allHabits, allLogs, allRoadmaps, rewards, claims] = await Promise.all([
     db.select().from(habits).orderBy(habits.sortOrder, habits.id),
     db.select().from(habitLogs),
     db.select().from(roadmaps).orderBy(roadmaps.sortOrder, roadmaps.id),
+    db.select().from(habitRewards).orderBy(habitRewards.id),
+    db.select().from(habitRewardClaims),
   ]);
 
   const toGridHabit = (h: (typeof allHabits)[number]): GridHabit => {
@@ -43,6 +46,14 @@ export default async function HabitsPage({
       currentStreak: stats.currentStreak,
       score: stats.score,
       checkedDates: dates,
+      targetDays: h.targetDays,
+      rewards: rewards
+        .filter((reward) => reward.habitId === h.id)
+        .map((reward) => ({
+          id: reward.id,
+          title: reward.title,
+          claimedMonths: claims.filter((claim) => claim.rewardId === reward.id).map((claim) => claim.month),
+        })),
     };
   };
 
@@ -109,6 +120,7 @@ export default async function HabitsPage({
                 </option>
               ))}
             </Select>
+            <Input type="number" name="targetDays" min={1} max={31} placeholder="Goal days/mo" title="Optional monthly goal: days per month" className="w-full xl:w-36 xl:shrink-0" />
             <Input type="date" name="endDate" title="Optional end date" className="w-full" />
             <Button type="submit" variant="primary" size="sm" className="w-full xl:w-auto">
               Add Habit
@@ -161,6 +173,8 @@ export default async function HabitsPage({
           </>
         }
       />
+
+      <RewardShelf habits={current.map(toGridHabit)} monthKey={monthKey} />
     </div>
   );
 }

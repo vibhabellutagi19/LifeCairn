@@ -5,12 +5,14 @@ import { EmptyState, Input } from "@/components/ui";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
 import { Collapsible } from "@/components/Collapsible";
 import { taskRefFor } from "@/lib/taskRef";
+import type { ProjectTaskStatus } from "@/lib/taskStatus";
 
 const STATUS_GROUPS = [
   { key: "in_progress", label: "In Progress", defaultOpen: true },
   { key: "not_started", label: "Not Started", defaultOpen: true },
   { key: "blocked", label: "Blocked", defaultOpen: false },
   { key: "done", label: "Done", defaultOpen: false },
+  { key: "backlog", label: "📥 Backlog", defaultOpen: false },
 ] as const;
 
 type Task = {
@@ -18,7 +20,7 @@ type Task = {
   title: string;
   branchName: string | null;
   priority: "low" | "medium" | "high";
-  status: "not_started" | "in_progress" | "blocked" | "done";
+  status: ProjectTaskStatus;
   startDate: string | null;
   dueDate: string | null;
   estHours: string | null;

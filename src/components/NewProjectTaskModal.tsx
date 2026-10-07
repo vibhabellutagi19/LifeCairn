@@ -142,6 +142,10 @@ export function NewProjectTaskModal({
               </label>
               <Textarea id={`${titleId}-notes`} name="notes" rows={3} />
             </div>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-bold sm:col-span-2">
+              <input type="checkbox" name="backlog" className="h-5 w-5 accent-[var(--ink)]" />
+              📥 Put straight into the backlog (for later)
+            </label>
             <div className="grid grid-cols-2 gap-2 pt-2 sm:col-span-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Cancel

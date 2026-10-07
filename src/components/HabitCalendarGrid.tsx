@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { clsx } from "clsx";
 import { Badge, Button, Input, Select } from "@/components/ui";
+import { goalProgress } from "@/lib/habitGoals";
 import {
   deleteHabit,
   toggleHabitActive,
@@ -19,6 +20,8 @@ export type GridHabit = {
   currentStreak: number;
   score: number;
   checkedDates: string[];
+  targetDays: number | null;
+  rewards: { id: number; title: string; claimedMonths: string[] }[];
 };
 
 function isWeekend(dateISO: string) {
@@ -108,9 +111,11 @@ function HabitGridRow({
   const [title, setTitle] = useState(habit.title);
   const [roadmapId, setRoadmapId] = useState(habit.roadmapId ? String(habit.roadmapId) : "");
   const [endDate, setEndDate] = useState(habit.endDate ?? "");
+  const [targetDays, setTargetDays] = useState(habit.targetDays ? String(habit.targetDays) : "");
 
   const checked = new Set(habit.checkedDates);
   const monthCount = habit.checkedDates.filter((d) => monthDays.includes(d)).length;
+  const goal = goalProgress(habit.checkedDates, monthDays[0]?.slice(0, 7) ?? "", habit.targetDays);
 
   if (editing) {
     return (
@@ -133,6 +138,16 @@ function HabitGridRow({
               </Select>
             </div>
             <Input
+              type="number"
+              min={1}
+              max={31}
+              value={targetDays}
+              onChange={(e) => setTargetDays(e.target.value)}
+              placeholder="Goal: days / month"
+              aria-label="Monthly goal in days"
+              className="text-base sm:text-xs"
+            />
+            <Input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
@@ -150,6 +165,7 @@ function HabitGridRow({
                       title,
                       roadmapId: roadmapId ? Number(roadmapId) : null,
                       endDate: endDate || null,
+                      targetDays: targetDays ? Number(targetDays) : null,
                     });
                     setEditing(false);
                   })
@@ -249,7 +265,17 @@ function HabitGridRow({
         );
       })}
       <td className="border-b border-l-2 border-ink p-2 text-center text-xs font-bold">
-        {monthCount}/{elapsedDaysInMonth}
+        {goal.target ? (
+          <span className={clsx("block whitespace-nowrap", goal.reached && "text-green")} title={`Goal: ${goal.target} days this month`}>
+            {goal.reached ? "🏆 " : ""}
+            {monthCount}/{goal.target}
+            <span className="block text-[10px] text-muted">{goal.percent}%</span>
+          </span>
+        ) : (
+          <>
+            {monthCount}/{elapsedDaysInMonth}
+          </>
+        )}
       </td>
     </tr>
   );

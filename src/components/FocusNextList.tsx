@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Badge, Button, EmptyState, Input } from "@/components/ui";
 import { setProjectTaskDates } from "@/lib/actions/projects";
 import { formatDateShort } from "@/lib/format";
+import type { ProjectTaskStatus } from "@/lib/taskStatus";
 
 const PRIORITY_COLOR: Record<string, "muted" | "orange" | "pink"> = {
   low: "muted",
@@ -17,7 +18,7 @@ type FocusItem = {
   title: string;
   branchName?: string | null;
   priority: "low" | "medium" | "high";
-  status: "not_started" | "in_progress" | "blocked" | "done";
+  status: ProjectTaskStatus;
   startDate?: string | null;
   dueDate: string | null;
   projectId: number;

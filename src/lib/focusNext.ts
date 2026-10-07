@@ -1,7 +1,9 @@
+import type { ProjectTaskStatus } from "@/lib/taskStatus";
+
 type FocusTask = {
   id: number;
   priority: "low" | "medium" | "high";
-  status: "not_started" | "in_progress" | "blocked" | "done";
+  status: ProjectTaskStatus;
   dueDate: string | null;
 };
 
@@ -44,6 +46,7 @@ export function isActiveOnDate(
   date: string
 ) {
   const { startDate, dueDate, status } = task;
+  if (status === "backlog") return false;
 
   if (startDate && dueDate) return startDate <= date && date <= dueDate;
 
