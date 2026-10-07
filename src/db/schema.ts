@@ -383,18 +383,26 @@ export const hooponoponoRounds = pgTable("hooponopono_rounds", {
   completedAt: timestamp("completed_at").notNull().defaultNow(),
 });
 
-// Self-chosen rewards attached to a habit. A reward unlocks in any month the
-// habit reaches its monthly goal (habits.target_days).
+export const habitRewardKind = pgEnum("habit_reward_kind", ["monthly_goal", "streak"]);
+
+// Self-chosen rewards attached to a habit. A "monthly_goal" reward unlocks in
+// any month the habit reaches its monthly goal (habits.target_days); a
+// "streak" reward unlocks whenever a run of check-ins reaches streak_days.
 export const habitRewards = pgTable("habit_rewards", {
   id: serial("id").primaryKey(),
   habitId: integer("habit_id")
     .notNull()
     .references(() => habits.id, { onDelete: "cascade" }),
   title: varchar("title", { length: 200 }).notNull(),
+  emoji: varchar("emoji", { length: 16 }),
+  kind: habitRewardKind("kind").notNull().default("monthly_goal"),
+  streakDays: integer("streak_days"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// A reward taken for a given month ("yyyy-MM"); at most once per month.
+// A reward taken for one period, at most once per period: "yyyy-MM" for a
+// monthly goal, "streak:yyyy-MM-dd" (the streak's first day) for a streak.
+// The DB column is still called "month" from before streak rewards existed.
 export const habitRewardClaims = pgTable(
   "habit_reward_claims",
   {
@@ -402,8 +410,8 @@ export const habitRewardClaims = pgTable(
     rewardId: integer("reward_id")
       .notNull()
       .references(() => habitRewards.id, { onDelete: "cascade" }),
-    month: varchar("month", { length: 7 }).notNull(),
+    period: varchar("month", { length: 24 }).notNull(),
     claimedAt: timestamp("claimed_at").notNull().defaultNow(),
   },
-  (table) => [unique().on(table.rewardId, table.month)]
+  (table) => [unique().on(table.rewardId, table.period)]
 );

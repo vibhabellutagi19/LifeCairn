@@ -7,6 +7,8 @@ import { deleteHabit, toggleHabitActive, toggleHabitLog, updateHabit } from "@/l
 import { burstConfetti } from "@/lib/confetti";
 import { shiftDateISO } from "@/lib/dates";
 import { goalProgress } from "@/lib/habitGoals";
+import { habitAccent, habitIcon } from "@/lib/habitLook";
+import { rewardState } from "@/lib/habitRewards";
 
 type Toggle = { habitId: number; date: string; checked: boolean };
 
@@ -66,10 +68,14 @@ export function HabitTodayView({
   function toggle(habit: GridHabit, source: Element) {
     const next = !isChecked(habit.id, selected);
     const monthKey = selected.slice(0, 7);
-    const before = goalProgress(checkedDates[habit.id] ?? [], monthKey, habit.targetDays);
-    const after = goalProgress([...(checkedDates[habit.id] ?? []), selected], monthKey, habit.targetDays);
-    if (next && !before.reached && after.reached) {
-      // This tap completes the monthly goal: a bigger celebration, and rewards unlock.
+    const datesNow = checkedDates[habit.id] ?? [];
+    const datesNext = [...datesNow, selected];
+    const before = goalProgress(datesNow, monthKey, habit.targetDays);
+    const after = goalProgress(datesNext, monthKey, habit.targetDays);
+    const unlocked = (dates: string[]) =>
+      habit.rewards.filter((r) => rewardState(r, { checkedDates: dates, targetDays: habit.targetDays }, monthKey, today).status === "unlocked").length;
+    if (next && ((!before.reached && after.reached) || unlocked(datesNext) > unlocked(datesNow))) {
+      // This tap completes the monthly goal or a reward streak: a bigger celebration.
       vibrate(80);
       burstConfetti(source, 44, ["🏆", "🎁", "🎉", "✨", "💛"]);
     } else if (next) {
@@ -151,7 +157,7 @@ export function HabitTodayView({
         </div>
       </section>
 
-      <ul className="space-y-3">
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visible.map((habit, index) => (
           <HabitCard
             key={habit.id}
@@ -162,6 +168,7 @@ export function HabitTodayView({
             checked={isChecked(habit.id, selected)}
             history={week.map((date) => ({ date, done: isChecked(habit.id, date) }))}
             goal={goalProgress(checkedDates[habit.id] ?? [], selected.slice(0, 7), habit.targetDays)}
+            dates={checkedDates[habit.id] ?? []}
             onToggle={toggle}
             roadmaps={roadmaps}
           />
@@ -179,6 +186,7 @@ function HabitCard({
   checked,
   history,
   goal,
+  dates,
   onToggle,
   roadmaps,
 }: {
@@ -189,6 +197,7 @@ function HabitCard({
   checked: boolean;
   history: { date: string; done: boolean }[];
   goal: ReturnType<typeof goalProgress>;
+  dates: string[];
   onToggle: (habit: GridHabit, source: Element) => void;
   roadmaps: { id: number; title: string }[];
 }) {
@@ -207,8 +216,15 @@ function HabitCard({
   const nowToday = history[history.length - 1]?.done ?? false;
   const streak = Math.max(0, habit.currentStreak + (nowToday && !serverToday ? 1 : 0) - (!nowToday && serverToday ? 1 : 0));
 
+  const rewards = habit.rewards
+    .map((reward) => ({ reward, state: rewardState(reward, { checkedDates: dates, targetDays: habit.targetDays }, monthKey, today) }))
+    .filter(({ state }) => state.status !== "no-goal");
+
   return (
-    <li className={clsx("hab-card", checked && "is-done")} style={{ animationDelay: `${Math.min(index, 8) * 50}ms` }}>
+    <li
+      className={clsx("hab-card", checked && "is-done")}
+      style={{ animationDelay: `${Math.min(index, 8) * 50}ms`, "--accent": habitAccent(habit.id) } as React.CSSProperties}
+    >
       <div className="flex items-stretch">
         <button
           type="button"
@@ -223,7 +239,10 @@ function HabitCard({
             </svg>
           </span>
           <span className="min-w-0 flex-1">
-            <span className={clsx("block text-base font-bold leading-snug", checked && "text-ink/55 line-through decoration-2")}>{habit.title}</span>
+            <span className={clsx("flex items-center gap-1.5 text-base font-bold leading-snug", checked && "text-ink/55")}>
+              <span aria-hidden className="hab-icon">{habitIcon(habit.title)}</span>
+              <span className={clsx("min-w-0", checked && "line-through decoration-2")}>{habit.title}</span>
+            </span>
             <span className="mt-1.5 flex items-center gap-2">
               <span className="flex gap-1" aria-hidden>
                 {history.map((h) => (
@@ -245,16 +264,23 @@ function HabitCard({
                 </span>
               </span>
             ) : null}
-            {habit.rewards.length > 0 ? (
+            {rewards.length > 0 ? (
               <span className="mt-2 flex flex-wrap gap-1">
-                {habit.rewards.map((reward) => {
-                  const taken = reward.claimedMonths.includes(monthKey);
-                  return (
-                    <span key={reward.id} className={clsx("hab-reward", goal.reached && !taken && "is-ready", taken && "is-taken")}>
-                      {taken ? "✅" : goal.reached ? "🎁" : "🔒"} {reward.title}
-                    </span>
-                  );
-                })}
+                {rewards.map(({ reward, state }) => (
+                  <span
+                    key={reward.id}
+                    className={clsx("hab-reward", state.status === "unlocked" && "is-ready", state.status === "claimed" && "is-taken")}
+                    title={state.status === "locked" ? `${state.left} more to unlock` : undefined}
+                  >
+                    {state.status === "claimed" ? "✅" : state.status === "unlocked" ? "🎁" : reward.emoji || "🔒"} {reward.title}
+                    {state.status === "locked" ? (
+                      <span className="opacity-70">
+                        · {reward.kind === "streak" ? "🔥" : ""}
+                        {state.done}/{state.target}
+                      </span>
+                    ) : null}
+                  </span>
+                ))}
               </span>
             ) : null}
           </span>

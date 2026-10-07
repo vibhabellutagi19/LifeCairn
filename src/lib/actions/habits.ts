@@ -7,6 +7,7 @@ import { habitLogs, habitRewardClaims, habitRewards, habits } from "@/db/schema"
 
 function revalidateAll() {
   revalidatePath("/habits");
+  revalidatePath("/habits/rewards");
   revalidatePath("/");
 }
 
@@ -71,10 +72,22 @@ export async function toggleHabitLog(habitId: number, date: string, checked: boo
   revalidateAll();
 }
 
-export async function addHabitReward(habitId: number, title: string) {
-  const clean = title.trim().slice(0, 200);
-  if (!clean) return;
-  await db.insert(habitRewards).values({ habitId, title: clean });
+/** Sets (or clears, with null) a habit's monthly goal in days. */
+export async function setHabitTarget(id: number, targetDays: number | null) {
+  await db.update(habits).set({ targetDays: parseTargetDays(targetDays) }).where(eq(habits.id, id));
+  revalidateAll();
+}
+
+export async function addHabitReward(
+  habitId: number,
+  data: { title: string; emoji?: string | null; kind: "monthly_goal" | "streak"; streakDays?: number | null }
+) {
+  const title = data.title.trim().slice(0, 200);
+  if (!title) return;
+  const kind = data.kind === "streak" ? "streak" : "monthly_goal";
+  const streakDays = kind === "streak" ? Math.min(365, Math.max(2, Math.round(Number(data.streakDays) || 7))) : null;
+  const emoji = data.emoji?.trim().slice(0, 16) || null;
+  await db.insert(habitRewards).values({ habitId, title, emoji, kind, streakDays });
   revalidateAll();
 }
 
@@ -83,18 +96,18 @@ export async function deleteHabitReward(id: number) {
   revalidateAll();
 }
 
-/** Marks a reward as taken (or not) for a month, "yyyy-MM". */
-export async function setHabitRewardClaimed(rewardId: number, month: string, claimed: boolean) {
-  if (!/^\d{4}-\d{2}$/.test(month)) return;
+/** Marks a reward as taken (or not) for a period: "yyyy-MM", or "streak:yyyy-MM-dd". */
+export async function setHabitRewardClaimed(rewardId: number, period: string, claimed: boolean) {
+  if (!/^(\d{4}-\d{2}|streak:\d{4}-\d{2}-\d{2})$/.test(period)) return;
   if (claimed) {
     await db
       .insert(habitRewardClaims)
-      .values({ rewardId, month })
-      .onConflictDoNothing({ target: [habitRewardClaims.rewardId, habitRewardClaims.month] });
+      .values({ rewardId, period })
+      .onConflictDoNothing({ target: [habitRewardClaims.rewardId, habitRewardClaims.period] });
   } else {
     await db
       .delete(habitRewardClaims)
-      .where(and(eq(habitRewardClaims.rewardId, rewardId), eq(habitRewardClaims.month, month)));
+      .where(and(eq(habitRewardClaims.rewardId, rewardId), eq(habitRewardClaims.period, period)));
   }
   revalidateAll();
 }

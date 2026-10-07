@@ -6,7 +6,7 @@ import { createHabit } from "@/lib/actions/habits";
 
 /**
  * Phones get a Today / Month switch and a "+" button that opens an add-habit sheet;
- * from `md` up everything is shown at once, like before.
+ * from `md` up both views are shown, one after the other, and the sheet opens as a dialog.
  */
 export function HabitsShell({
   today,
@@ -20,6 +20,10 @@ export function HabitsShell({
   const [tab, setTab] = useState<"today" | "month">("today");
   const sheetRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const openSheet = () => {
+    sheetRef.current?.showModal();
+    requestAnimationFrame(() => titleRef.current?.focus());
+  };
 
   return (
     <>
@@ -39,15 +43,26 @@ export function HabitsShell({
         ))}
       </div>
 
-      <div className={clsx(tab === "today" ? "block" : "hidden", "md:hidden")}>{today}</div>
+      <div className="hab-section-head">
+        <h2 className="font-display text-2xl font-bold">
+          <span className="home-marker is-always">☀️ Check in</span>
+        </h2>
+        <button type="button" onClick={openSheet} className="hab-new-btn">
+          + New habit
+        </button>
+      </div>
+      <div className={clsx(tab === "today" ? "block" : "hidden", "md:block")}>{today}</div>
+
+      <div className="hab-section-head mt-10">
+        <h2 className="font-display text-2xl font-bold">
+          <span className="home-marker is-always">🗓 The month at a glance</span>
+        </h2>
+      </div>
       <div className={clsx(tab === "month" ? "block" : "hidden", "md:block")}>{month}</div>
 
       <button
         type="button"
-        onClick={() => {
-          sheetRef.current?.showModal();
-          requestAnimationFrame(() => titleRef.current?.focus());
-        }}
+        onClick={openSheet}
         aria-label="Add a habit"
         className="hab-fab md:hidden"
       >

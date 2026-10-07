@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { clsx } from "clsx";
-import { Badge, Button, Input, Select } from "@/components/ui";
+import { Button, Input, Select } from "@/components/ui";
 import { goalProgress } from "@/lib/habitGoals";
+import { habitAccent, habitIcon } from "@/lib/habitLook";
+import type { HabitRewardData } from "@/lib/habitRewards";
 import {
   deleteHabit,
   toggleHabitActive,
@@ -18,10 +20,11 @@ export type GridHabit = {
   endDate: string | null;
   active: boolean;
   currentStreak: number;
+  longestStreak: number;
   score: number;
   checkedDates: string[];
   targetDays: number | null;
-  rewards: { id: number; title: string; claimedMonths: string[] }[];
+  rewards: HabitRewardData[];
 };
 
 function isWeekend(dateISO: string) {
@@ -31,6 +34,10 @@ function isWeekend(dateISO: string) {
 
 function dayNumber(dateISO: string) {
   return Number(dateISO.slice(8, 10));
+}
+
+function weekdayLetter(dateISO: string) {
+  return new Date(`${dateISO}T00:00:00`).toLocaleDateString("en-IN", { weekday: "narrow" });
 }
 
 export function HabitCalendarGrid({
@@ -51,42 +58,37 @@ export function HabitCalendarGrid({
   return (
     <div>
       <p className="mb-2 text-xs font-semibold text-muted sm:hidden">Swipe sideways to see the full month.</p>
-      <div className="brut-border overflow-x-auto rounded-lg bg-surface" role="region" aria-label="Habit calendar" tabIndex={0}>
-        <table className="border-collapse">
-        <thead>
-          <tr>
-            <th className="sticky left-0 z-10 min-w-[150px] border-b-2 border-ink bg-surface p-2 text-left text-xs font-bold uppercase tracking-wide text-muted sm:min-w-[220px]">
-              Habit
-            </th>
-            {monthDays.map((d) => (
-              <th
-                key={d}
-                className={clsx(
-                  "w-8 border-b-2 border-l border-ink/20 p-1 text-center text-[11px] font-bold",
-                  d === today && "bg-yellow",
-                  isWeekend(d) && d !== today && "bg-background"
-                )}
-              >
-                {dayNumber(d)}
+      <div className="hm-grid overflow-x-auto" role="region" aria-label="Habit calendar" tabIndex={0}>
+        <table className="border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th className="hm-sticky min-w-[160px] p-2 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-muted sm:min-w-[230px]">
+                Habit
               </th>
+              {monthDays.map((d) => (
+                <th
+                  key={d}
+                  className={clsx("hm-head", d === today && "is-today", isWeekend(d) && "is-weekend")}
+                >
+                  <span className="block text-[9px] font-bold uppercase opacity-60">{weekdayLetter(d)}</span>
+                  {dayNumber(d)}
+                </th>
+              ))}
+              <th className="p-2 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-muted">Goal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {habits.map((h) => (
+              <HabitGridRow
+                key={h.id}
+                habit={h}
+                monthDays={monthDays}
+                today={today}
+                elapsedDaysInMonth={elapsedDaysInMonth}
+                roadmaps={roadmaps}
+              />
             ))}
-            <th className="border-b-2 border-l-2 border-ink p-2 text-center text-xs font-bold uppercase tracking-wide text-muted">
-              Month
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {habits.map((h) => (
-            <HabitGridRow
-              key={h.id}
-              habit={h}
-              monthDays={monthDays}
-              today={today}
-              elapsedDaysInMonth={elapsedDaysInMonth}
-              roadmaps={roadmaps}
-            />
-          ))}
-        </tbody>
+          </tbody>
         </table>
       </div>
     </div>
@@ -116,27 +118,23 @@ function HabitGridRow({
   const checked = new Set(habit.checkedDates);
   const monthCount = habit.checkedDates.filter((d) => monthDays.includes(d)).length;
   const goal = goalProgress(habit.checkedDates, monthDays[0]?.slice(0, 7) ?? "", habit.targetDays);
+  const accent = habitAccent(habit.id);
+  const meter = goal.target ? Math.min(100, goal.percent) : elapsedDaysInMonth ? Math.round((monthCount / elapsedDaysInMonth) * 100) : 0;
 
   if (editing) {
     return (
       <tr className={clsx(!habit.active && "opacity-50")}>
-        <td className="sticky left-0 z-10 min-w-[150px] border-b border-ink/20 bg-surface p-2 sm:min-w-[220px]" colSpan={1}>
+        <td className="hm-sticky hm-row-cell min-w-[160px] p-2 sm:min-w-[230px]" colSpan={1}>
           <div className="space-y-1">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} className="text-base sm:text-xs" />
-            <div className="flex gap-1">
-              <Select
-                value={roadmapId}
-                onChange={(e) => setRoadmapId(e.target.value)}
-                className="text-base sm:text-xs"
-              >
-                <option value="">No roadmap</option>
-                {roadmaps.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.title}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <Select value={roadmapId} onChange={(e) => setRoadmapId(e.target.value)} className="text-base sm:text-xs">
+              <option value="">No roadmap</option>
+              {roadmaps.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.title}
+                </option>
+              ))}
+            </Select>
             <Input
               type="number"
               min={1}
@@ -147,12 +145,7 @@ function HabitGridRow({
               aria-label="Monthly goal in days"
               className="text-base sm:text-xs"
             />
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="text-base sm:text-xs"
-            />
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-base sm:text-xs" />
             <div className="flex gap-1">
               <Button
                 type="button"
@@ -179,29 +172,39 @@ function HabitGridRow({
             </div>
           </div>
         </td>
-        <td colSpan={monthDays.length + 1} className="border-b border-ink/20 bg-surface" />
+        <td colSpan={monthDays.length + 1} className="hm-row-cell" />
       </tr>
     );
   }
 
   return (
-    <tr className={clsx(!habit.active && "opacity-50")}>
-      <td className="sticky left-0 z-10 min-w-[150px] border-b border-ink/20 bg-surface p-2 sm:min-w-[220px]">
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-              className="line-clamp-2 min-h-11 max-w-[118px] text-left text-sm font-bold leading-tight hover:underline sm:min-h-0 sm:max-w-none"
-            title="Click to edit"
-          >
-            {habit.title}
-          </button>
-            <div className="flex shrink-0 items-center">
+    <tr className={clsx("hm-row", !habit.active && "opacity-50")} style={{ "--accent": accent } as React.CSSProperties}>
+      <td className="hm-sticky hm-row-cell min-w-[160px] p-2 sm:min-w-[230px]">
+        <div className="flex items-center gap-2">
+          <span aria-hidden className="hm-icon">
+            {habitIcon(habit.title)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="line-clamp-2 max-w-[104px] text-left text-sm font-bold leading-tight hover:underline sm:max-w-none"
+              title="Click to edit"
+            >
+              {habit.title}
+            </button>
+            <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] font-bold text-ink/60">
+              <span className={habit.currentStreak > 0 ? "text-orange" : ""}>🔥 {habit.currentStreak}</span>
+              <span title="Best streak">🏅 {habit.longestStreak}</span>
+              {habit.endDate ? <span>ends {habit.endDate.slice(5)}</span> : null}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center">
             <button
               type="button"
               aria-label={habit.active ? "Pause habit" : "Resume habit"}
               disabled={isPending}
-              className="flex h-11 w-11 items-center justify-center text-muted hover:text-orange sm:h-8 sm:w-8"
+              className="flex h-11 w-9 items-center justify-center text-muted hover:text-orange sm:h-8 sm:w-7"
               onClick={() =>
                 startTransition(() => {
                   toggleHabitActive(habit.id, !habit.active);
@@ -214,7 +217,7 @@ function HabitGridRow({
               type="button"
               aria-label="Delete habit"
               disabled={isPending}
-              className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink sm:h-8 sm:w-8"
+              className="flex h-11 w-9 items-center justify-center text-muted hover:text-pink sm:h-8 sm:w-7"
               onClick={() =>
                 startTransition(() => {
                   if (confirm(`Delete "${habit.title}" and all its history?`)) {
@@ -227,55 +230,41 @@ function HabitGridRow({
             </button>
           </div>
         </div>
-        <div className="mt-1 flex items-center gap-1.5">
-          <Badge color="orange">🔥 {habit.currentStreak}</Badge>
-          <Badge color="green">⭐ {habit.score}</Badge>
-          {habit.endDate ? <Badge color="muted">ends {habit.endDate.slice(5)}</Badge> : null}
-        </div>
       </td>
       {monthDays.map((d) => {
         const isChecked = checked.has(d);
         const future = d > today;
+        // Join consecutive days into one pill so streaks read at a glance.
+        const prev = isChecked && checked.has(monthDays[monthDays.indexOf(d) - 1] ?? "");
+        const next = isChecked && checked.has(monthDays[monthDays.indexOf(d) + 1] ?? "");
         return (
-          <td
-            key={d}
-            className={clsx(
-              "border-b border-l border-ink/20 p-0.5 text-center",
-              d === today && "bg-yellow/30",
-              isWeekend(d) && d !== today && "bg-background"
-            )}
-          >
+          <td key={d} className={clsx("hm-row-cell hm-cell", d === today && "is-today")}>
             <button
               type="button"
               disabled={isPending || future}
-              aria-label={`${habit.title} on ${d}`}
+              aria-label={`${habit.title} on ${d}${isChecked ? ", done" : ""}`}
+              aria-pressed={isChecked}
               onClick={() =>
                 startTransition(() => {
                   toggleHabitLog(habit.id, d, !isChecked);
                 })
               }
-              className={clsx(
-                "brut-border mx-auto flex h-11 w-11 items-center justify-center rounded text-sm sm:h-7 sm:w-7 sm:text-[11px]",
-                isChecked ? "bg-green text-white" : future ? "cursor-not-allowed bg-background/50" : "bg-surface"
-              )}
+              className={clsx("hm-dot", isChecked && "is-on", prev && "join-prev", next && "join-next", future && "is-future")}
             >
               {isChecked ? "✓" : ""}
             </button>
           </td>
         );
       })}
-      <td className="border-b border-l-2 border-ink p-2 text-center text-xs font-bold">
-        {goal.target ? (
-          <span className={clsx("block whitespace-nowrap", goal.reached && "text-green")} title={`Goal: ${goal.target} days this month`}>
-            {goal.reached ? "🏆 " : ""}
-            {monthCount}/{goal.target}
-            <span className="block text-[10px] text-muted">{goal.percent}%</span>
-          </span>
-        ) : (
-          <>
-            {monthCount}/{elapsedDaysInMonth}
-          </>
-        )}
+      <td className="hm-row-cell min-w-[88px] px-2 text-center text-xs font-bold">
+        <span className={clsx("block whitespace-nowrap", goal.reached && "text-green")} title={goal.target ? `Goal: ${goal.target} days this month` : "No monthly goal"}>
+          {goal.reached ? "🏆 " : ""}
+          {monthCount}/{goal.target ?? elapsedDaysInMonth}
+        </span>
+        <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-ink/10">
+          <span className={clsx("hab-goal-bar block h-full", goal.reached && "is-reached")} style={{ width: `${meter}%`, background: goal.reached ? undefined : accent }} />
+        </span>
+        <span className="mt-0.5 block text-[10px] text-muted">{goal.target ? `${goal.percent}%` : "no goal"}</span>
       </td>
     </tr>
   );
