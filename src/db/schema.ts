@@ -454,3 +454,11 @@ export const habitRewardClaims = pgTable(
   },
   (table) => [unique().on(table.rewardId, table.period)]
 );
+
+// One row per user: how the app (and the cat) should address them.
+export const profiles = pgTable("profiles", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
+  nickname: varchar("nickname", { length: 30 }).notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

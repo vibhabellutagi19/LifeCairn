@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { ClerkProvider, Show } from "@clerk/nextjs";
 import { Sidebar } from "@/components/Sidebar";
+import { clerkAppearance } from "@/lib/clerkAppearance";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -27,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${spaceGrotesk.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-dvh overflow-x-hidden bg-background text-ink md:flex">
-        <ClerkProvider>
+        <ClerkProvider appearance={clerkAppearance}>
           <Show when="signed-in">
             <Sidebar />
           </Show>

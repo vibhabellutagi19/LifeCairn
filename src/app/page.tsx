@@ -28,6 +28,8 @@ import { HomeCat } from "@/components/HomeCat";
 import { HomeMotion } from "@/components/HomeMotion";
 import { CountUp } from "@/components/CountUp";
 import { buildCatNudges } from "@/lib/catNudges";
+import { NicknameForm } from "@/components/NicknameForm";
+import { getNickname } from "@/lib/profile";
 import { isActiveOnDate, rankFocusTasks } from "@/lib/focusNext";
 import { computeHabitStats } from "@/lib/habitStats";
 import { computeAffirmationStats } from "@/lib/affirmationStats";
@@ -54,6 +56,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const userId = await requireUserId();
+  const nickname = await getNickname(userId);
   const today = todayISO();
   const { date: requestedDate } = await searchParams;
   const selectedDate = isISODate(requestedDate) ? requestedDate : today;
@@ -196,6 +199,7 @@ export default async function DashboardPage({
   )[0];
   const catNudges = buildCatNudges({
     today,
+    nickname,
     focusTask,
     pendingHabits: habitRows
       .filter((row) => !row.doneToday)
@@ -213,6 +217,7 @@ export default async function DashboardPage({
   return (
     <div className="mx-auto max-w-[1500px]">
       <HomeMotion />
+      <NicknameForm nickname={nickname} variant="prompt" />
       <section className="home-hero home-reveal relative overflow-hidden rounded-[2rem] bg-ink p-5 text-white sm:p-8 sm:pb-28 lg:p-10 lg:pb-28 pb-24">
         <div aria-hidden className="home-orbit home-orbit-one" />
         <div aria-hidden className="home-orbit home-orbit-two" />

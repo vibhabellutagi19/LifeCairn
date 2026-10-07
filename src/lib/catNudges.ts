@@ -9,6 +9,8 @@ export type CatNudge = {
 
 type NudgeInput = {
   today: string;
+  /** The user's chosen nickname, if they set one. */
+  nickname?: string | null;
   focusTask?: {
     id: number;
     title: string;
@@ -29,6 +31,8 @@ type NudgeInput = {
 export function buildCatNudges(input: NudgeInput): CatNudge[] {
   const nudges: CatNudge[] = [];
   const { focusTask } = input;
+  // Used sparingly (greeting and all-done lines) so it doesn't feel repetitive.
+  const name = input.nickname?.trim();
 
   if (focusTask) {
     nudges.push({
@@ -57,7 +61,7 @@ export function buildCatNudges(input: NudgeInput): CatNudge[] {
   if (input.plannedCount === 0) {
     nudges.push({
       emoji: "☀️",
-      text: "Nothing planned today. Add just one meaningful thing, I'll supervise.",
+      text: `Nothing planned today${name ? `, ${name}` : ""}. Add just one meaningful thing, I'll supervise.`,
       href: "/",
       cta: "Plan the day",
     });
@@ -80,7 +84,7 @@ export function buildCatNudges(input: NudgeInput): CatNudge[] {
   if (!input.journalWritten) {
     nudges.push({
       emoji: "✎",
-      text: "Your journal is feeling lonely. Three honest lines is plenty.",
+      text: `${name ? `${name}, your` : "Your"} journal is feeling lonely. Three honest lines is plenty.`,
       href: `/journal/${input.today}`,
       cta: "Open journal",
     });
@@ -89,7 +93,7 @@ export function buildCatNudges(input: NudgeInput): CatNudge[] {
   if (nudges.length === 0) {
     nudges.push({
       emoji: "🏆",
-      text: "Everything's done! I'm so proud of you. Go stretch, drink water, accept head scratches.",
+      text: `Everything's done${name ? `, ${name}` : ""}! I'm so proud of you. Go stretch, drink water, accept head scratches.`,
     });
   }
 

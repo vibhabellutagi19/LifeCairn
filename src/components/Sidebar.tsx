@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 import { UserButton } from "@clerk/nextjs";
+import { Logo } from "@/components/Logo";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", emoji: "🏠" },
@@ -15,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/manifestation", label: "Manifestation", emoji: "◌" },
   { href: "/finance", label: "Finance", emoji: "💰" },
   { href: "/review", label: "Review", emoji: "📊" },
+  { href: "/profile", label: "Profile", emoji: "👤" },
 ];
 
 export function Sidebar() {
@@ -61,10 +63,13 @@ export function Sidebar() {
   return (
     <>
       <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between border-b-3 border-ink bg-surface px-4 py-2 md:hidden">
-        <Link href="/" className="min-w-0" onClick={() => setMobileOpen(false)}>
-          <span className="block truncate font-display text-xl font-bold tracking-tight">LIFECAIRN</span>
-          <span className="block text-[10px] font-semibold uppercase tracking-widest text-muted">
-            Oct &rarr; Dec 2026
+        <Link href="/" className="flex min-w-0 items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+          <Logo className="h-8 w-8 shrink-0" />
+          <span className="min-w-0">
+            <span className="block truncate font-display text-xl font-bold tracking-tight">LIFECAIRN</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-widest text-muted">
+              Oct &rarr; Dec 2026
+            </span>
           </span>
         </Link>
         <div className="flex shrink-0 items-center gap-3">
@@ -123,16 +128,19 @@ export function Sidebar() {
 
       <aside
         className={clsx(
-          "sticky top-0 hidden h-screen shrink-0 border-r-3 border-ink bg-surface transition-[width] duration-200 md:block",
+          "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r-3 border-ink bg-surface transition-[width] duration-200 md:flex",
           collapsed ? "w-[76px]" : "w-64"
         )}
       >
-        <div className={clsx("flex items-start gap-3", collapsed ? "justify-center p-3" : "justify-between p-6")}>
+        <div className={clsx("flex shrink-0 items-start gap-3", collapsed ? "justify-center p-3" : "justify-between p-6")}>
           {!collapsed ? (
-            <Link href="/" className="block min-w-0">
-              <span className="font-display text-2xl font-bold tracking-tight">LIFECAIRN</span>
-              <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted">
-                Oct &rarr; Dec 2026
+            <Link href="/" className="flex min-w-0 items-center gap-3">
+              <Logo className="h-9 w-9 shrink-0" />
+              <span className="min-w-0">
+                <span className="block font-display text-2xl font-bold tracking-tight">LIFECAIRN</span>
+                <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted">
+                  Oct &rarr; Dec 2026
+                </span>
               </span>
             </Link>
           ) : null}
@@ -149,11 +157,11 @@ export function Sidebar() {
         </div>
         <nav
           aria-label="Primary navigation"
-          className={clsx("flex flex-col gap-2 pb-6", collapsed ? "px-2" : "px-4")}
+          className={clsx("flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-4", collapsed ? "px-2" : "px-4")}
         >
           {navLinks()}
         </nav>
-        <div className={clsx("absolute bottom-0 left-0 right-0 border-t-3 border-ink p-4", collapsed && "flex justify-center px-2")}>
+        <div className={clsx("flex min-w-0 shrink-0 items-center border-t-3 border-ink p-4", collapsed && "justify-center px-2")}>
           <UserButton showName={!collapsed} />
         </div>
       </aside>
