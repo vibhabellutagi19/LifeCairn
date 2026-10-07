@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   affirmationCheckins,
@@ -18,6 +18,7 @@ import { AffirmationCheckin } from "@/components/AffirmationCheckin";
 import { BreathingOrb } from "@/components/BreathingOrb";
 import { GratitudeJar } from "@/components/GratitudeJar";
 import { EmotionalHourTracker } from "@/components/EmotionalHourTracker";
+import { requireUserId } from "@/lib/auth";
 import { computeAffirmationStats } from "@/lib/affirmationStats";
 import { customEmotionKey, EMOTIONS } from "@/lib/emotions";
 import { shiftDateISO, todayISO } from "@/lib/dates";
@@ -40,22 +41,25 @@ function SectionHeading({ eyebrow, title, color, children }: { eyebrow: string; 
 }
 
 export default async function ManifestationPage() {
+  const userId = await requireUserId();
   const today = todayISO();
   const [journal, checkins, activeAffirmations, emotions, trackingSettings, customEmotionRows, manifestedCount, rounds] = await Promise.all([
-    db.query.journalEntries.findFirst({ where: eq(journalEntries.date, today) }),
-    db.select().from(affirmationCheckins),
+    db.query.journalEntries.findFirst({
+      where: and(eq(journalEntries.userId, userId), eq(journalEntries.date, today)),
+    }),
+    db.select().from(affirmationCheckins).where(eq(affirmationCheckins.userId, userId)),
     db
       .select({ id: affirmations.id, text: affirmations.text, category: affirmations.category })
       .from(affirmations)
-      .where(eq(affirmations.active, true))
+      .where(and(eq(affirmations.userId, userId), eq(affirmations.active, true)))
       .orderBy(affirmations.sortOrder, affirmations.id),
     db
       .select({ hour: emotionalCheckins.hour, emotion: emotionalCheckins.emotion })
       .from(emotionalCheckins)
-      .where(eq(emotionalCheckins.date, today))
+      .where(and(eq(emotionalCheckins.userId, userId), eq(emotionalCheckins.date, today)))
       .orderBy(emotionalCheckins.hour),
     db.query.emotionalTrackingSettings.findFirst({
-      where: eq(emotionalTrackingSettings.profileKey, "default"),
+      where: eq(emotionalTrackingSettings.userId, userId),
     }),
     db
       .select({
@@ -65,12 +69,13 @@ export default async function ManifestationPage() {
         category: customEmotions.category,
       })
       .from(customEmotions)
-      .where(eq(customEmotions.active, true))
+      .where(and(eq(customEmotions.userId, userId), eq(customEmotions.active, true)))
       .orderBy(customEmotions.sortOrder, customEmotions.id),
-    db.$count(affirmationManifestations),
+    db.$count(affirmationManifestations, eq(affirmationManifestations.userId, userId)),
     db
       .select({ date: hooponoponoRounds.date, repetitions: hooponoponoRounds.repetitions })
       .from(hooponoponoRounds)
+      .where(eq(hooponoponoRounds.userId, userId))
       .orderBy(desc(hooponoponoRounds.completedAt)),
   ]);
   const affirmationStats = computeAffirmationStats(checkins, today);

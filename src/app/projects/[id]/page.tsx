@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases, roadmaps } from "@/db/schema";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
+import { requireUserId } from "@/lib/auth";
 import { formatDateShort } from "@/lib/format";
 import { currentMonthKey, monthRangeISO, todayISO, weekRangeISO } from "@/lib/dates";
 import { isOpenTask } from "@/lib/taskStatus";
@@ -29,11 +30,14 @@ export default async function ProjectDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const userId = await requireUserId();
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
 
-  const project = await db.query.projects.findFirst({ where: eq(projects.id, id) });
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, id), eq(projects.userId, userId)),
+  });
   if (!project) notFound();
 
   const [projectReleases, tasks, goal] = await Promise.all([
@@ -48,7 +52,9 @@ export default async function ProjectDetailPage({
       .where(eq(projectTasks.projectId, id))
       .orderBy(projectTasks.sortOrder, projectTasks.id),
     project.roadmapId
-      ? db.query.roadmaps.findFirst({ where: eq(roadmaps.id, project.roadmapId) })
+      ? db.query.roadmaps.findFirst({
+          where: and(eq(roadmaps.id, project.roadmapId), eq(roadmaps.userId, userId)),
+        })
       : Promise.resolve(undefined),
   ]);
 

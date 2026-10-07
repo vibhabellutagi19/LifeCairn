@@ -3,6 +3,21 @@ import { eq } from "drizzle-orm";
 import { db } from "./index";
 import { projectTasks, projects, releases, roadmaps } from "./schema";
 
+function requireSeedUser(): string {
+  const id = process.env.SEED_USER_ID;
+  if (!id) {
+    console.error("Set SEED_USER_ID to the Clerk user id (user_...) that should own the seeded data.");
+    process.exit(1);
+  }
+  return id;
+}
+
+const userId = requireSeedUser();
+
+function withUser<const T extends object>(rows: readonly T[]) {
+  return rows.map((row) => ({ userId, ...row }));
+}
+
 async function main() {
   const existing = await db.select().from(projects).limit(1);
   if (existing.length > 0) {
@@ -17,6 +32,7 @@ async function main() {
   const [move] = await db
     .insert(projects)
     .values({
+      userId,
       name: "Move - the gym app",
       client: "Akshay Bharadhwaj",
       status: "Active",
@@ -29,6 +45,7 @@ async function main() {
   const [nimmaVasti] = await db
     .insert(projects)
     .values({
+      userId,
       name: "NimmaVasti",
       client: "Vibhavari Bellutagi",
       status: "Active",
@@ -42,7 +59,7 @@ async function main() {
 
   const releaseRows = await db
     .insert(releases)
-    .values([
+    .values(withUser([
       {
         projectId: move.id,
         name: "v1.0",
@@ -95,14 +112,14 @@ async function main() {
         status: "planned",
         sortOrder: 6,
       },
-    ])
+    ]))
     .returning();
 
   const releaseId = (name: string) => releaseRows.find((r) => r.name === name)!.id;
 
   console.log("Importing tasks for Move...");
 
-  await db.insert(projectTasks).values([
+  await db.insert(projectTasks).values(withUser([
     { projectId: move.id, title: "Invoice Generation", priority: "high", status: "not_started", dueDate: "2026-10-01", sortOrder: 0 },
     { projectId: move.id, title: "Discounts for payments", priority: "high", status: "not_started", dueDate: "2026-10-08", sortOrder: 1 },
     { projectId: move.id, title: "Mobile first UI", priority: "medium", status: "not_started", sortOrder: 2 },
@@ -125,7 +142,7 @@ async function main() {
     { projectId: move.id, title: "Infrastructure fixes and revamp", priority: "low", status: "not_started", sortOrder: 19 },
     { projectId: move.id, releaseId: releaseId("v1.2.0"), title: "Session cancellation request from coach to owner", priority: "high", status: "in_progress", dueDate: "2026-09-24", sortOrder: 20 },
     { projectId: move.id, title: "Security: DDOS etc.", priority: "low", status: "not_started", sortOrder: 21 },
-  ]);
+  ]));
 
   console.log(`Imported: ${move.name} (7 releases, 22 tasks), ${nimmaVasti.name} (no releases/tasks yet).`);
   console.log("Import complete.");

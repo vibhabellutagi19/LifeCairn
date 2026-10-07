@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases } from "@/db/schema";
+import { requireUserId } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
 import { TaskDetailsForm } from "@/components/TaskDetailsForm";
@@ -15,11 +16,14 @@ export default async function TaskDetailPage({
 }: {
   params: Promise<{ id: string; taskRef: string[] }>;
 }) {
+  const userId = await requireUserId();
   const { id: idParam, taskRef } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
 
-  const project = await db.query.projects.findFirst({ where: eq(projects.id, id) });
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, id), eq(projects.userId, userId)),
+  });
   if (!project) notFound();
 
   // Branch names commonly contain slashes (feature/xyz), so the URL segment

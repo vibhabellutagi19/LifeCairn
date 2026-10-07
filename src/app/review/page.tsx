@@ -20,6 +20,7 @@ import {
   tasks,
 } from "@/db/schema";
 import { Badge, Card } from "@/components/ui";
+import { requireUserId } from "@/lib/auth";
 import { customEmotionKey, EMOTIONS, type EmotionCategory } from "@/lib/emotions";
 import { formatDateShort, formatEUR } from "@/lib/format";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
@@ -46,8 +47,9 @@ const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) 
 const weekdayShort = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "narrow" });
 
 /** Everything the page shows for one period, so the current and previous period can be compared. */
-async function loadPeriod(range: Range, today: string) {
-  const inRange = (column: AnyColumn) => and(gte(column, range.start), lte(column, range.end));
+async function loadPeriod(range: Range, today: string, userId: string) {
+  const inRange = (column: AnyColumn, owner: AnyColumn) =>
+    and(eq(owner, userId), gte(column, range.start), lte(column, range.end));
   const [
     dailyTasks,
     allHabits,
@@ -63,27 +65,29 @@ async function loadPeriod(range: Range, today: string) {
     dueProjectTasks,
     wins,
   ] = await Promise.all([
-    db.select({ completed: tasks.completed }).from(tasks).where(inRange(tasks.date)),
-    db.select().from(habits),
-    db.select({ habitId: habitLogs.habitId, date: habitLogs.date }).from(habitLogs),
-    db.select().from(pomodoroSessions).where(inRange(pomodoroSessions.date)),
-    db.select({ date: emotionalCheckins.date, emotion: emotionalCheckins.emotion }).from(emotionalCheckins).where(inRange(emotionalCheckins.date)),
-    db.select({ id: customEmotions.id, name: customEmotions.name, emoji: customEmotions.emoji, category: customEmotions.category }).from(customEmotions),
-    db.select({ date: affirmationCheckins.date }).from(affirmationCheckins).where(inRange(affirmationCheckins.date)),
-    db.select({ date: journalEntries.date, content: journalEntries.content, gratitude: journalEntries.gratitude }).from(journalEntries).where(inRange(journalEntries.date)),
-    db.select({ date: hooponoponoRounds.date, repetitions: hooponoponoRounds.repetitions }).from(hooponoponoRounds).where(inRange(hooponoponoRounds.date)),
-    db.select({ type: financeEntries.type, amount: financeEntries.amount }).from(financeEntries).where(inRange(financeEntries.date)),
+    db.select({ completed: tasks.completed }).from(tasks).where(inRange(tasks.date, tasks.userId)),
+    db.select().from(habits).where(eq(habits.userId, userId)),
+    db.select({ habitId: habitLogs.habitId, date: habitLogs.date }).from(habitLogs)
+      .where(eq(habitLogs.userId, userId)),
+    db.select().from(pomodoroSessions).where(inRange(pomodoroSessions.date, pomodoroSessions.userId)),
+    db.select({ date: emotionalCheckins.date, emotion: emotionalCheckins.emotion }).from(emotionalCheckins).where(inRange(emotionalCheckins.date, emotionalCheckins.userId)),
+    db.select({ id: customEmotions.id, name: customEmotions.name, emoji: customEmotions.emoji, category: customEmotions.category }).from(customEmotions)
+      .where(eq(customEmotions.userId, userId)),
+    db.select({ date: affirmationCheckins.date }).from(affirmationCheckins).where(inRange(affirmationCheckins.date, affirmationCheckins.userId)),
+    db.select({ date: journalEntries.date, content: journalEntries.content, gratitude: journalEntries.gratitude }).from(journalEntries).where(inRange(journalEntries.date, journalEntries.userId)),
+    db.select({ date: hooponoponoRounds.date, repetitions: hooponoponoRounds.repetitions }).from(hooponoponoRounds).where(inRange(hooponoponoRounds.date, hooponoponoRounds.userId)),
+    db.select({ type: financeEntries.type, amount: financeEntries.amount }).from(financeEntries).where(inRange(financeEntries.date, financeEntries.userId)),
     db
       .select({ id: milestones.id, title: milestones.title, status: milestones.status, targetDate: milestones.targetDate, roadmap: roadmaps.title })
       .from(milestones)
       .leftJoin(roadmaps, eq(milestones.roadmapId, roadmaps.id))
-      .where(inRange(milestones.targetDate)),
+      .where(inRange(milestones.targetDate, milestones.userId)),
     db
       .select({ status: projectTasks.status, project: projects.name })
       .from(projectTasks)
       .innerJoin(projects, eq(projectTasks.projectId, projects.id))
-      .where(inRange(projectTasks.dueDate)),
-    db.select().from(affirmationManifestations).where(inRange(affirmationManifestations.manifestedOn)),
+      .where(inRange(projectTasks.dueDate, projectTasks.userId)),
+    db.select().from(affirmationManifestations).where(inRange(affirmationManifestations.manifestedOn, affirmationManifestations.userId)),
   ]);
 
   const days = daysIn(range);
@@ -229,6 +233,7 @@ export default async function ReviewPage({
 }: {
   searchParams: Promise<{ period?: string; anchor?: string }>;
 }) {
+  const userId = await requireUserId();
   const { period: periodParam, anchor: anchorParam } = await searchParams;
   const period = periodParam === "month" ? "month" : "week";
   const today = todayISO();
@@ -241,7 +246,10 @@ export default async function ReviewPage({
       : monthRangeISO(format(addMonths(new Date(`${monthKey}-01T00:00:00`), -1), "yyyy-MM"));
   const isFuture = range.start > today;
 
-  const [now, before] = await Promise.all([loadPeriod(range, today), loadPeriod(previous, today)]);
+  const [now, before] = await Promise.all([
+    loadPeriod(range, today, userId),
+    loadPeriod(previous, today, userId),
+  ]);
 
   const prevAnchor = period === "week" ? previous.start : previous.start.slice(0, 7);
   const nextAnchor =

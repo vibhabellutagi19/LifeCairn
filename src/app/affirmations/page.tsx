@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   affirmationCheckins,
@@ -10,6 +10,7 @@ import { AffirmationCheckin } from "@/components/AffirmationCheckin";
 import { AffirmationWorkspace } from "@/components/AffirmationWorkspace";
 import { NewAffirmationModal } from "@/components/NewAffirmationModal";
 import { ManifestationHistory } from "@/components/ManifestationHistory";
+import { requireUserId } from "@/lib/auth";
 import { computeAffirmationStats } from "@/lib/affirmationStats";
 import { categoryEmoji } from "@/lib/affirmationSubcategories";
 import { todayISO } from "@/lib/dates";
@@ -17,17 +18,20 @@ import { todayISO } from "@/lib/dates";
 export const dynamic = "force-dynamic";
 
 export default async function AffirmationsPage() {
+  const userId = await requireUserId();
   const today = todayISO();
 
   const [all, checkins, celebrations] = await Promise.all([
     db
       .select()
       .from(affirmations)
+      .where(eq(affirmations.userId, userId))
       .orderBy(affirmations.category, affirmations.subcategory, affirmations.sortOrder, affirmations.id),
-    db.select().from(affirmationCheckins),
+    db.select().from(affirmationCheckins).where(eq(affirmationCheckins.userId, userId)),
     db
       .select()
       .from(affirmationManifestations)
+      .where(eq(affirmationManifestations.userId, userId))
       .orderBy(desc(affirmationManifestations.manifestedOn), desc(affirmationManifestations.id)),
   ]);
 

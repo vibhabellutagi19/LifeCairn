@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { milestones, roadmaps } from "@/db/schema";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, ProgressBar, Select, Textarea } from "@/components/ui";
 import { createRoadmap } from "@/lib/actions/roadmaps";
+import { requireUserId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +16,10 @@ const COLOR_BADGE = {
 } as const;
 
 export default async function RoadmapsPage() {
+  const userId = await requireUserId();
   const [allRoadmaps, allMilestones] = await Promise.all([
-    db.select().from(roadmaps).orderBy(roadmaps.sortOrder, roadmaps.id),
-    db.select().from(milestones),
+    db.select().from(roadmaps).where(eq(roadmaps.userId, userId)).orderBy(roadmaps.sortOrder, roadmaps.id),
+    db.select().from(milestones).where(eq(milestones.userId, userId)),
   ]);
 
   return (

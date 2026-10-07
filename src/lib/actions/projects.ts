@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { projectTasks, projects, releases } from "@/db/schema";
+import { projectTasks, projects, releases, roadmaps } from "@/db/schema";
+import { requireUserId } from "@/lib/auth";
+import { ownsRow } from "@/lib/ownership";
 import type { ProjectTaskStatus } from "@/lib/taskStatus";
 
 function revalidateAll(projectId?: number) {
@@ -17,6 +19,7 @@ function revalidateAll(projectId?: number) {
 }
 
 export async function createProject(formData: FormData) {
+  const userId = await requireUserId();
   const name = String(formData.get("name") || "").trim();
   if (!name) return;
   const client = String(formData.get("client") || "").trim();
@@ -27,8 +30,10 @@ export async function createProject(formData: FormData) {
   const deadline = String(formData.get("deadline") || "") || null;
   const rateValue = String(formData.get("rateValue") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
+  if (!(await ownsRow(roadmaps, roadmapId, userId))) return;
 
   await db.insert(projects).values({
+    userId,
     name,
     client: client || null,
     status,
@@ -43,19 +48,23 @@ export async function createProject(formData: FormData) {
 }
 
 export async function deleteProject(id: number) {
-  await db.delete(projects).where(eq(projects.id, id));
+  const userId = await requireUserId();
+  await db.delete(projects).where(and(eq(projects.id, id), eq(projects.userId, userId)));
   revalidateAll();
 }
 
 export async function createRelease(projectId: number, formData: FormData) {
+  const userId = await requireUserId();
   const name = String(formData.get("name") || "").trim();
   if (!name) return;
   const startDate = String(formData.get("startDate") || "") || null;
   const targetDate = String(formData.get("targetDate") || "") || null;
   const notes = String(formData.get("notes") || "").trim();
   const releaseNoteUrl = String(formData.get("releaseNoteUrl") || "").trim();
+  if (!(await ownsRow(projects, projectId, userId))) return;
 
   await db.insert(releases).values({
+    userId,
     projectId,
     name,
     startDate,
@@ -78,6 +87,7 @@ export async function updateRelease(
     releaseNoteUrl: string | null;
   }
 ) {
+  const userId = await requireUserId();
   const name = data.name.trim();
   if (!name) return;
 
@@ -90,7 +100,9 @@ export async function updateRelease(
       notes: data.notes?.trim() || null,
       releaseNoteUrl: data.releaseNoteUrl?.trim() || null,
     })
-    .where(and(eq(releases.id, id), eq(releases.projectId, projectId)));
+    .where(
+      and(eq(releases.id, id), eq(releases.projectId, projectId), eq(releases.userId, userId))
+    );
   revalidateAll(projectId);
 }
 
@@ -99,6 +111,7 @@ export async function cycleReleaseStatus(
   projectId: number,
   current: "planned" | "in_progress" | "released"
 ) {
+  const userId = await requireUserId();
   const next =
     current === "planned"
       ? "in_progress"
@@ -106,16 +119,21 @@ export async function cycleReleaseStatus(
         ? "released"
         : "planned";
 
-  await db.update(releases).set({ status: next }).where(eq(releases.id, id));
+  await db
+    .update(releases)
+    .set({ status: next })
+    .where(and(eq(releases.id, id), eq(releases.userId, userId)));
   revalidateAll(projectId);
 }
 
 export async function deleteRelease(id: number, projectId: number) {
-  await db.delete(releases).where(eq(releases.id, id));
+  const userId = await requireUserId();
+  await db.delete(releases).where(and(eq(releases.id, id), eq(releases.userId, userId)));
   revalidateAll(projectId);
 }
 
 export async function createProjectTask(projectId: number, formData: FormData) {
+  const userId = await requireUserId();
   const title = String(formData.get("title") || "").trim();
   if (!title) return;
   const branchName = String(formData.get("branchName") || "").trim();
@@ -130,8 +148,11 @@ export async function createProjectTask(projectId: number, formData: FormData) {
   const estHoursRaw = String(formData.get("estHours") || "").trim();
   const toBacklog = formData.get("backlog") === "on";
   const notes = String(formData.get("notes") || "").trim();
+  if (!(await ownsRow(projects, projectId, userId))) return;
+  if (!(await ownsRow(releases, releaseId, userId))) return;
 
   await db.insert(projectTasks).values({
+    userId,
     projectId,
     releaseId,
     title,
@@ -152,6 +173,7 @@ export async function updateProjectTaskDetails(
   projectId: number,
   data: { title: string; branchName: string | null; notes: string | null; estHours: string | null }
 ) {
+  const userId = await requireUserId();
   const title = data.title.trim();
   if (!title) return;
 
@@ -163,7 +185,7 @@ export async function updateProjectTaskDetails(
       notes: data.notes?.trim() || null,
       estHours: data.estHours?.trim() || null,
     })
-    .where(eq(projectTasks.id, id));
+    .where(and(eq(projectTasks.id, id), eq(projectTasks.userId, userId)));
   revalidateAll(projectId);
 }
 
@@ -172,10 +194,17 @@ export async function setProjectTaskStatus(
   projectId: number,
   status: ProjectTaskStatus
 ) {
+  const userId = await requireUserId();
   await db
     .update(projectTasks)
     .set({ status })
-    .where(and(eq(projectTasks.id, id), eq(projectTasks.projectId, projectId)));
+    .where(
+      and(
+        eq(projectTasks.id, id),
+        eq(projectTasks.projectId, projectId),
+        eq(projectTasks.userId, userId)
+      )
+    );
   revalidateAll(projectId);
 }
 
@@ -184,7 +213,11 @@ export async function setProjectTaskPriority(
   projectId: number,
   priority: "low" | "medium" | "high"
 ) {
-  await db.update(projectTasks).set({ priority }).where(eq(projectTasks.id, id));
+  const userId = await requireUserId();
+  await db
+    .update(projectTasks)
+    .set({ priority })
+    .where(and(eq(projectTasks.id, id), eq(projectTasks.userId, userId)));
   revalidateAll(projectId);
 }
 
@@ -193,12 +226,18 @@ export async function setProjectTaskRelease(
   projectId: number,
   releaseId: number | null
 ) {
-  await db.update(projectTasks).set({ releaseId }).where(eq(projectTasks.id, id));
+  const userId = await requireUserId();
+  if (!(await ownsRow(releases, releaseId, userId))) return;
+  await db
+    .update(projectTasks)
+    .set({ releaseId })
+    .where(and(eq(projectTasks.id, id), eq(projectTasks.userId, userId)));
   revalidateAll(projectId);
 }
 
 export async function deleteProjectTask(id: number, projectId: number) {
-  await db.delete(projectTasks).where(eq(projectTasks.id, id));
+  const userId = await requireUserId();
+  await db.delete(projectTasks).where(and(eq(projectTasks.id, id), eq(projectTasks.userId, userId)));
   revalidateAll(projectId);
 }
 
@@ -211,9 +250,10 @@ export async function setProjectTaskDates(
   startDate: string | null,
   dueDate: string | null
 ) {
+  const userId = await requireUserId();
   await db
     .update(projectTasks)
     .set({ startDate, dueDate })
-    .where(eq(projectTasks.id, id));
+    .where(and(eq(projectTasks.id, id), eq(projectTasks.userId, userId)));
   revalidateAll(projectId);
 }

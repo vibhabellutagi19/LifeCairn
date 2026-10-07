@@ -3,6 +3,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases, roadmaps } from "@/db/schema";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { requireUserId } from "@/lib/auth";
 import { createProject } from "@/lib/actions/projects";
 import { FocusNextList } from "@/components/FocusNextList";
 import { rankFocusTasks } from "@/lib/focusNext";
@@ -10,10 +11,11 @@ import { rankFocusTasks } from "@/lib/focusNext";
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
+  const userId = await requireUserId();
   const [allProjects, allRoadmaps, allReleases, openTasks] = await Promise.all([
-    db.select().from(projects).orderBy(projects.sortOrder, projects.id),
-    db.select().from(roadmaps).orderBy(roadmaps.sortOrder, roadmaps.id),
-    db.select().from(releases),
+    db.select().from(projects).where(eq(projects.userId, userId)).orderBy(projects.sortOrder, projects.id),
+    db.select().from(roadmaps).where(eq(roadmaps.userId, userId)).orderBy(roadmaps.sortOrder, roadmaps.id),
+    db.select().from(releases).where(eq(releases.userId, userId)),
     db
       .select({
         id: projectTasks.id,
@@ -29,7 +31,12 @@ export default async function ProjectsPage() {
       .from(projectTasks)
       .innerJoin(projects, eq(projectTasks.projectId, projects.id))
       .where(
-        and(ne(projectTasks.status, "done"), ne(projectTasks.status, "blocked"), ne(projectTasks.status, "backlog"))
+        and(
+          eq(projectTasks.userId, userId),
+          ne(projectTasks.status, "done"),
+          ne(projectTasks.status, "blocked"),
+          ne(projectTasks.status, "backlog")
+        )
       ),
   ]);
 

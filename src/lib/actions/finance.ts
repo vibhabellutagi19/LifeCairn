@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   financeAccounts,
@@ -11,6 +11,7 @@ import {
   financeTargets,
 } from "@/db/schema";
 import { isExpenseCategory } from "@/lib/financeCategories";
+import { requireUserId } from "@/lib/auth";
 
 function revalidateAll() {
   revalidatePath("/finance");
@@ -25,6 +26,7 @@ function isSavingType(value: string): value is (typeof SAVING_TYPES)[number] {
 }
 
 export async function createSaving(formData: FormData) {
+  const userId = await requireUserId();
   const name = String(formData.get("name") || "").trim();
   if (!name) return;
   const typeRaw = String(formData.get("type") || "other");
@@ -34,6 +36,7 @@ export async function createSaving(formData: FormData) {
   if (!balanceRaw || !Number.isFinite(balance) || balance < 0) return;
 
   await db.insert(financeAccounts).values({
+    userId,
     name,
     type: typeRaw,
     balance: balance.toFixed(2),
@@ -42,17 +45,21 @@ export async function createSaving(formData: FormData) {
 }
 
 export async function updateSavingBalance(id: number, balanceRaw: string) {
+  const userId = await requireUserId();
   const parsedBalance = Number(balanceRaw.replaceAll(",", "").trim());
   if (!Number.isFinite(parsedBalance) || parsedBalance < 0) return;
   await db
     .update(financeAccounts)
     .set({ balance: parsedBalance.toFixed(2), updatedAt: new Date() })
-    .where(eq(financeAccounts.id, id));
+    .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
   revalidateAll();
 }
 
 export async function deleteSaving(id: number) {
-  await db.delete(financeAccounts).where(eq(financeAccounts.id, id));
+  const userId = await requireUserId();
+  await db
+    .delete(financeAccounts)
+    .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
   revalidateAll();
 }
 
@@ -66,15 +73,21 @@ function amountFromForm(formData: FormData, field: string) {
 }
 
 export async function saveMonthlyFinanceSnapshot(month: string, formData: FormData) {
+  const userId = await requireUserId();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
 
   const snapshotDate = String(formData.get("snapshotDate") || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(snapshotDate) || !snapshotDate.startsWith(month)) return;
 
-  const accounts = await db.select().from(financeAccounts).orderBy(financeAccounts.id);
+  const accounts = await db
+    .select()
+    .from(financeAccounts)
+    .where(eq(financeAccounts.userId, userId))
+    .orderBy(financeAccounts.id);
   if (accounts.length === 0) return;
 
   const values = accounts.map((account, index) => ({
+    userId,
     accountId: account.id,
     accountName: account.name,
     accountType: account.type,
@@ -86,7 +99,7 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
 
   await db.transaction(async (tx) => {
     const existing = await tx.query.financeSnapshots.findFirst({
-      where: eq(financeSnapshots.month, month),
+      where: and(eq(financeSnapshots.userId, userId), eq(financeSnapshots.month, month)),
     });
 
     let snapshotId: number;
@@ -95,14 +108,19 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
       await tx
         .update(financeSnapshots)
         .set({ snapshotDate, updatedAt: new Date() })
-        .where(eq(financeSnapshots.id, existing.id));
+        .where(and(eq(financeSnapshots.id, existing.id), eq(financeSnapshots.userId, userId)));
       await tx
         .delete(financeSnapshotItems)
-        .where(eq(financeSnapshotItems.snapshotId, existing.id));
+        .where(
+          and(
+            eq(financeSnapshotItems.snapshotId, existing.id),
+            eq(financeSnapshotItems.userId, userId)
+          )
+        );
     } else {
       const [snapshot] = await tx
         .insert(financeSnapshots)
-        .values({ month, snapshotDate })
+        .values({ userId, month, snapshotDate })
         .returning({ id: financeSnapshots.id });
       snapshotId = snapshot.id;
     }
@@ -114,6 +132,7 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
     const [latest] = await tx
       .select({ month: financeSnapshots.month })
       .from(financeSnapshots)
+      .where(eq(financeSnapshots.userId, userId))
       .orderBy(desc(financeSnapshots.month))
       .limit(1);
 
@@ -122,7 +141,9 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
         await tx
           .update(financeAccounts)
           .set({ balance: value.currentValue, updatedAt: new Date(`${snapshotDate}T00:00:00`) })
-          .where(eq(financeAccounts.id, value.accountId));
+          .where(
+            and(eq(financeAccounts.id, value.accountId), eq(financeAccounts.userId, userId))
+          );
       }
     }
   });
@@ -131,6 +152,7 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
 }
 
 export async function createFinanceEntry(formData: FormData) {
+  const userId = await requireUserId();
   const source = String(formData.get("source") || "").trim();
   const amountRaw = String(formData.get("amount") || "").replaceAll(",", "").trim();
   const amount = Number(amountRaw);
@@ -145,6 +167,7 @@ export async function createFinanceEntry(formData: FormData) {
   const notes = String(formData.get("notes") || "").trim();
 
   await db.insert(financeEntries).values({
+    userId,
     source,
     amount: amount.toFixed(2),
     type,
@@ -156,24 +179,28 @@ export async function createFinanceEntry(formData: FormData) {
 }
 
 export async function deleteFinanceEntry(id: number) {
-  await db.delete(financeEntries).where(eq(financeEntries.id, id));
+  const userId = await requireUserId();
+  await db
+    .delete(financeEntries)
+    .where(and(eq(financeEntries.id, id), eq(financeEntries.userId, userId)));
   revalidateAll();
 }
 
 export async function setMonthlyTarget(month: string, formData: FormData) {
+  const userId = await requireUserId();
   const targetAmount = String(formData.get("targetAmount") || "").trim();
   if (!targetAmount) return;
 
   const existing = await db.query.financeTargets.findFirst({
-    where: eq(financeTargets.month, month),
+    where: and(eq(financeTargets.userId, userId), eq(financeTargets.month, month)),
   });
   if (existing) {
     await db
       .update(financeTargets)
       .set({ targetAmount })
-      .where(eq(financeTargets.month, month));
+      .where(and(eq(financeTargets.userId, userId), eq(financeTargets.month, month)));
   } else {
-    await db.insert(financeTargets).values({ month, targetAmount });
+    await db.insert(financeTargets).values({ userId, month, targetAmount });
   }
   revalidateAll();
 }

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { journalEntries } from "@/db/schema";
 import { Button, Card, PageHeader, Select, Textarea } from "@/components/ui";
+import { requireUserId } from "@/lib/auth";
 import { saveJournalEntry } from "@/lib/actions/journal";
 import { formatDateLong } from "@/lib/format";
 
@@ -13,9 +14,10 @@ export default async function JournalEntryPage({
 }: {
   params: Promise<{ date: string }>;
 }) {
+  const userId = await requireUserId();
   const { date } = await params;
   const entry = await db.query.journalEntries.findFirst({
-    where: eq(journalEntries.date, date),
+    where: and(eq(journalEntries.userId, userId), eq(journalEntries.date, date)),
   });
 
   return (

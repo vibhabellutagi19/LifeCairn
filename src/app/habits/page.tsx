@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { roadmaps } from "@/db/schema";
 import { EmptyState } from "@/components/ui";
@@ -6,6 +7,7 @@ import { HabitCalendarGrid } from "@/components/HabitCalendarGrid";
 import { Collapsible } from "@/components/Collapsible";
 import { HabitsShell } from "@/components/HabitsShell";
 import { HabitTodayView } from "@/components/HabitTodayView";
+import { requireUserId } from "@/lib/auth";
 import { loadHabits } from "@/lib/habitData";
 import { goalProgress } from "@/lib/habitGoals";
 import { habitIcon } from "@/lib/habitLook";
@@ -23,6 +25,7 @@ export default async function HabitsPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  const userId = await requireUserId();
   const { month: monthParam } = await searchParams;
   const today = todayISO();
   const thisMonth = currentMonthKey();
@@ -33,8 +36,12 @@ export default async function HabitsPage({
     range.start > today ? 0 : range.end < today ? monthDays.length : monthDays.indexOf(today) + 1;
 
   const [{ habits: allHabits }, allRoadmaps] = await Promise.all([
-    loadHabits(today),
-    db.select({ id: roadmaps.id, title: roadmaps.title }).from(roadmaps).orderBy(roadmaps.sortOrder, roadmaps.id),
+    loadHabits(today, userId),
+    db
+      .select({ id: roadmaps.id, title: roadmaps.title })
+      .from(roadmaps)
+      .where(eq(roadmaps.userId, userId))
+      .orderBy(roadmaps.sortOrder, roadmaps.id),
   ]);
 
   // "Active for this view" is relative to the month being looked at, not

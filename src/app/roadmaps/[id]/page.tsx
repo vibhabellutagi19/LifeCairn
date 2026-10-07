@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { milestones, roadmaps } from "@/db/schema";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, ProgressBar, Textarea } from "@/components/ui";
 import { createMilestone, deleteRoadmap } from "@/lib/actions/roadmaps";
+import { requireUserId } from "@/lib/auth";
 import { MilestoneRow } from "@/components/MilestoneRow";
 import { DeleteRoadmapButton } from "@/components/DeleteRoadmapButton";
 
@@ -15,17 +16,20 @@ export default async function RoadmapDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const userId = await requireUserId();
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
 
-  const roadmap = await db.query.roadmaps.findFirst({ where: eq(roadmaps.id, id) });
+  const roadmap = await db.query.roadmaps.findFirst({
+    where: and(eq(roadmaps.id, id), eq(roadmaps.userId, userId)),
+  });
   if (!roadmap) notFound();
 
   const ms = await db
     .select()
     .from(milestones)
-    .where(eq(milestones.roadmapId, id))
+    .where(and(eq(milestones.roadmapId, id), eq(milestones.userId, userId)))
     .orderBy(milestones.targetDate, milestones.sortOrder, milestones.id);
 
   const done = ms.filter((m) => m.status === "done").length;

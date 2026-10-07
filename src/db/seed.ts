@@ -8,6 +8,21 @@ import {
   roadmaps,
 } from "./schema";
 
+function requireSeedUser(): string {
+  const id = process.env.SEED_USER_ID;
+  if (!id) {
+    console.error("Set SEED_USER_ID to the Clerk user id (user_...) that should own the seeded data.");
+    process.exit(1);
+  }
+  return id;
+}
+
+const userId = requireSeedUser();
+
+function withUser<const T extends object>(rows: readonly T[]) {
+  return rows.map((row) => ({ userId, ...row }));
+}
+
 async function main() {
   const existing = await db.select().from(roadmaps).limit(1);
   if (existing.length > 0) {
@@ -20,6 +35,7 @@ async function main() {
   const [career] = await db
     .insert(roadmaps)
     .values({
+      userId,
       title: "Career",
       category: "Career",
       color: "orange",
@@ -33,6 +49,7 @@ async function main() {
   const [money] = await db
     .insert(roadmaps)
     .values({
+      userId,
       title: "Money",
       category: "Money",
       color: "yellow",
@@ -46,6 +63,7 @@ async function main() {
   const [health] = await db
     .insert(roadmaps)
     .values({
+      userId,
       title: "Health",
       category: "Health",
       color: "green",
@@ -59,6 +77,7 @@ async function main() {
   const [relationship] = await db
     .insert(roadmaps)
     .values({
+      userId,
       title: "Relationship",
       category: "Relationship",
       color: "pink",
@@ -71,7 +90,7 @@ async function main() {
 
   console.log("Seeding milestones...");
 
-  await db.insert(milestones).values([
+  await db.insert(milestones).values(withUser([
     // Career
     {
       roadmapId: career.id,
@@ -268,11 +287,11 @@ async function main() {
       targetDate: "2026-12-31",
       sortOrder: 5,
     },
-  ]);
+  ]));
 
   console.log("Seeding affirmations...");
 
-  await db.insert(affirmations).values([
+  await db.insert(affirmations).values(withUser([
     // Money — maintenance
     { text: "I am so grateful I have 16.6 lakhs in FDs.", category: "Money", sortOrder: 0 },
     { text: "I am so grateful I have 21 lakhs in mutual funds.", category: "Money", sortOrder: 1 },
@@ -314,11 +333,11 @@ async function main() {
     // Career
     { text: "I am building platforms that create real value for real people.", category: "Career", sortOrder: 0 },
     { text: "Clarity comes from lived experience, not overthinking.", category: "Career", sortOrder: 1 },
-  ]);
+  ]));
 
   console.log("Seeding finance accounts...");
 
-  await db.insert(financeAccounts).values([
+  await db.insert(financeAccounts).values(withUser([
     { name: "Fixed Deposits", type: "fd", balance: "1660000" },
     { name: "Mutual Funds", type: "mutual_fund", balance: "2100000" },
     {
@@ -327,16 +346,16 @@ async function main() {
       balance: "0",
       notes: "Destination for the ~15L France transfer. Split: 30% safe income / 40% growth / 30% liquid buffer.",
     },
-  ]);
+  ]));
 
   console.log("Seeding finance targets...");
 
-  await db.insert(financeTargets).values([
+  await db.insert(financeTargets).values(withUser([
     { month: "2026-10", targetAmount: "10000" },
     { month: "2026-11", targetAmount: "20000" },
     { month: "2026-12", targetAmount: "20000" },
     { month: "2027-01", targetAmount: "70000" },
-  ]);
+  ]));
 
   console.log("Seed complete.");
   process.exit(0);

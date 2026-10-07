@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases } from "@/db/schema";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { ReleaseRow } from "@/components/ReleaseRow";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
+import { requireUserId } from "@/lib/auth";
 import { taskRefFor } from "@/lib/taskRef";
 
 export const dynamic = "force-dynamic";
@@ -15,16 +16,19 @@ export default async function ReleaseDetailPage({
 }: {
   params: Promise<{ id: string; releaseRef: string }>;
 }) {
+  const userId = await requireUserId();
   const { id: idParam, releaseRef } = await params;
   const id = Number(idParam);
   const releaseId = Number(releaseRef);
   if (Number.isNaN(id) || Number.isNaN(releaseId)) notFound();
 
-  const project = await db.query.projects.findFirst({ where: eq(projects.id, id) });
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, id), eq(projects.userId, userId)),
+  });
   if (!project) notFound();
 
   const release = await db.query.releases.findFirst({
-    where: eq(releases.id, releaseId),
+    where: and(eq(releases.id, releaseId), eq(releases.userId, userId)),
   });
   if (!release || release.projectId !== id) notFound();
 
@@ -32,7 +36,7 @@ export default async function ReleaseDetailPage({
     db
       .select()
       .from(projectTasks)
-      .where(eq(projectTasks.releaseId, releaseId))
+      .where(and(eq(projectTasks.releaseId, releaseId), eq(projectTasks.userId, userId)))
       .orderBy(projectTasks.sortOrder, projectTasks.id),
     db.select().from(releases).where(eq(releases.projectId, id)).orderBy(releases.sortOrder, releases.id),
   ]);

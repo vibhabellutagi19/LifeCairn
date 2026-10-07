@@ -17,6 +17,7 @@ import {
   roadmaps,
   tasks,
 } from "@/db/schema";
+import { requireUserId } from "@/lib/auth";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar } from "@/components/ui";
 import { TaskRow } from "@/components/TaskRow";
 import { ManifestationSection } from "@/components/ManifestationSection";
@@ -52,6 +53,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
+  const userId = await requireUserId();
   const today = todayISO();
   const { date: requestedDate } = await searchParams;
   const selectedDate = isISODate(requestedDate) ? requestedDate : today;
@@ -79,14 +81,16 @@ export default async function DashboardPage({
     db
       .select()
       .from(tasks)
-      .where(and(gte(tasks.date, week.start), lte(tasks.date, week.end)))
+      .where(and(eq(tasks.userId, userId), gte(tasks.date, week.start), lte(tasks.date, week.end)))
       .orderBy(tasks.date, tasks.sortOrder, tasks.id),
-    db.query.journalEntries.findFirst({ where: eq(journalEntries.date, today) }),
-    db.select().from(affirmationCheckins),
+    db.query.journalEntries.findFirst({
+      where: and(eq(journalEntries.userId, userId), eq(journalEntries.date, today)),
+    }),
+    db.select().from(affirmationCheckins).where(eq(affirmationCheckins.userId, userId)),
     db
       .select({ hour: emotionalCheckins.hour, emotion: emotionalCheckins.emotion })
       .from(emotionalCheckins)
-      .where(eq(emotionalCheckins.date, today))
+      .where(and(eq(emotionalCheckins.userId, userId), eq(emotionalCheckins.date, today)))
       .orderBy(emotionalCheckins.hour),
     db
       .select({
@@ -96,17 +100,18 @@ export default async function DashboardPage({
         category: customEmotions.category,
       })
       .from(customEmotions)
-      .where(eq(customEmotions.active, true))
+      .where(and(eq(customEmotions.userId, userId), eq(customEmotions.active, true)))
       .orderBy(customEmotions.sortOrder, customEmotions.id),
-    db.$count(affirmations, eq(affirmations.active, true)),
-    db.select().from(roadmaps).orderBy(roadmaps.sortOrder, roadmaps.id),
-    db.select().from(milestones),
-    db.select().from(financeAccounts),
+    db.$count(affirmations, and(eq(affirmations.userId, userId), eq(affirmations.active, true))),
+    db.select().from(roadmaps).where(eq(roadmaps.userId, userId)).orderBy(roadmaps.sortOrder, roadmaps.id),
+    db.select().from(milestones).where(eq(milestones.userId, userId)),
+    db.select().from(financeAccounts).where(eq(financeAccounts.userId, userId)),
     db
       .select({ total: sql<string>`coalesce(sum(${financeEntries.amount}), 0)` })
       .from(financeEntries)
       .where(
         and(
+          eq(financeEntries.userId, userId),
           eq(financeEntries.type, "income"),
           gte(financeEntries.date, monthStart),
           lte(financeEntries.date, monthEnd)
@@ -127,14 +132,26 @@ export default async function DashboardPage({
         projectName: projects.name,
       })
       .from(projectTasks)
-      .innerJoin(projects, eq(projectTasks.projectId, projects.id)),
-    db.select().from(habits).where(eq(habits.active, true)).orderBy(habits.sortOrder, habits.id),
-    db.select().from(habitLogs),
+      .innerJoin(projects, eq(projectTasks.projectId, projects.id))
+      .where(eq(projectTasks.userId, userId)),
+    db
+      .select()
+      .from(habits)
+      .where(and(eq(habits.userId, userId), eq(habits.active, true)))
+      .orderBy(habits.sortOrder, habits.id),
+    db.select().from(habitLogs).where(eq(habitLogs.userId, userId)),
     // Unfinished dashboard tasks from the last two weeks, carried over as overdue.
     db
       .select()
       .from(tasks)
-      .where(and(gte(tasks.date, shiftDateISO(today, -14)), lt(tasks.date, today), eq(tasks.completed, false)))
+      .where(
+        and(
+          eq(tasks.userId, userId),
+          gte(tasks.date, shiftDateISO(today, -14)),
+          lt(tasks.date, today),
+          eq(tasks.completed, false)
+        )
+      )
       .orderBy(tasks.date, tasks.sortOrder, tasks.id),
   ]);
 

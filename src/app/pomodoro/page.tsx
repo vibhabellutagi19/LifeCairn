@@ -4,6 +4,7 @@ import { pomodoroSessions, pomodoroSettings, projectTasks, projects, tasks as da
 import { PageHeader } from "@/components/ui";
 import { PomodoroTimer, type PomodoroTask } from "@/components/PomodoroTimer";
 import { PomodoroHistory } from "@/components/PomodoroHistory";
+import { requireUserId } from "@/lib/auth";
 import { rankFocusTasks } from "@/lib/focusNext";
 import { shiftDateISO, todayISO } from "@/lib/dates";
 import { formatDateShort } from "@/lib/format";
@@ -16,6 +17,7 @@ export default async function PomodoroPage({
 }: {
   searchParams: Promise<{ task?: string; start?: string }>;
 }) {
+  const userId = await requireUserId();
   const { task: requestedTask, start } = await searchParams;
   const today = todayISO();
   const [openTasks, todaysTasks, leftoverTasks, settings, recentSessions, [allTime]] = await Promise.all([
@@ -29,29 +31,38 @@ export default async function PomodoroPage({
         projectName: projects.name,
       })
       .from(projectTasks)
-      .innerJoin(projects, eq(projectTasks.projectId, projects.id)),
+      .innerJoin(projects, eq(projectTasks.projectId, projects.id))
+      .where(eq(projectTasks.userId, userId)),
     db
       .select({ id: dailyTasks.id, title: dailyTasks.title })
       .from(dailyTasks)
-      .where(and(eq(dailyTasks.date, today), eq(dailyTasks.completed, false)))
+      .where(and(eq(dailyTasks.userId, userId), eq(dailyTasks.date, today), eq(dailyTasks.completed, false)))
       .orderBy(dailyTasks.sortOrder, dailyTasks.id),
     db
       .select({ id: dailyTasks.id, title: dailyTasks.title, date: dailyTasks.date })
       .from(dailyTasks)
-      .where(and(gte(dailyTasks.date, shiftDateISO(today, -14)), lt(dailyTasks.date, today), eq(dailyTasks.completed, false)))
+      .where(
+        and(
+          eq(dailyTasks.userId, userId),
+          gte(dailyTasks.date, shiftDateISO(today, -14)),
+          lt(dailyTasks.date, today),
+          eq(dailyTasks.completed, false)
+        )
+      )
       .orderBy(dailyTasks.date, dailyTasks.id),
-    db.query.pomodoroSettings.findFirst({ where: eq(pomodoroSettings.profileKey, "default") }),
+    db.query.pomodoroSettings.findFirst({ where: eq(pomodoroSettings.userId, userId) }),
     db
       .select()
       .from(pomodoroSessions)
-      .where(gte(pomodoroSessions.date, shiftDateISO(today, -89)))
+      .where(and(eq(pomodoroSessions.userId, userId), gte(pomodoroSessions.date, shiftDateISO(today, -89))))
       .orderBy(desc(pomodoroSessions.date), desc(pomodoroSessions.completedAt)),
     db
       .select({
         count: sql<number>`count(*)::int`,
         minutes: sql<number>`coalesce(sum(${pomodoroSessions.minutes}), 0)::int`,
       })
-      .from(pomodoroSessions),
+      .from(pomodoroSessions)
+      .where(eq(pomodoroSessions.userId, userId)),
   ]);
 
   const openProject = openTasks.filter((task) => isOpenTask(task.status) && task.status !== "blocked");
@@ -81,7 +92,9 @@ export default async function PomodoroPage({
   if (requestedTask && !tasks.some((task) => task.id === requestedTask)) {
     const dailyId = /^daily:(\d+)$/.exec(requestedTask)?.[1];
     if (dailyId) {
-      const row = await db.query.tasks.findFirst({ where: eq(dailyTasks.id, Number(dailyId)) });
+      const row = await db.query.tasks.findFirst({
+        where: and(eq(dailyTasks.id, Number(dailyId)), eq(dailyTasks.userId, userId)),
+      });
       if (row) tasks.unshift({ id: requestedTask, title: row.title, group: "today" });
     } else if (/^\d+$/.test(requestedTask)) {
       const row = openTasks.find((task) => task.id === Number(requestedTask));

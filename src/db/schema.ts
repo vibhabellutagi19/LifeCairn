@@ -59,6 +59,7 @@ export const emotionCategory = pgEnum("emotion_category", [
 // anything else the user adds). Each roadmap owns a list of milestones.
 export const roadmaps = pgTable("roadmaps", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   title: varchar("title", { length: 200 }).notNull(),
   category: varchar("category", { length: 100 }).notNull().default("General"),
   description: text("description"),
@@ -72,6 +73,7 @@ export const roadmaps = pgTable("roadmaps", {
 // A milestone is one checkpoint/phase within a roadmap (e.g. "Week 1 (Oct 1-15)").
 export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   roadmapId: integer("roadmap_id")
     .notNull()
     .references(() => roadmaps.id, { onDelete: "cascade" }),
@@ -86,6 +88,7 @@ export const milestones = pgTable("milestones", {
 // Day-wise tasks, optionally linked back to a roadmap for progress rollups.
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   title: varchar("title", { length: 300 }).notNull(),
   date: date("date").notNull(),
   completed: boolean("completed").notNull().default(false),
@@ -100,6 +103,7 @@ export const tasks = pgTable("tasks", {
 // subcategory (e.g. Money -> Maintenance / Goal / Action / Extra abundance).
 export const affirmations = pgTable("affirmations", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   text: text("text").notNull(),
   category: varchar("category", { length: 100 }).notNull().default("General"),
   subcategory: varchar("subcategory", { length: 100 }),
@@ -114,6 +118,7 @@ export const affirmationManifestations = pgTable(
   "affirmation_manifestations",
   {
     id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
     affirmationId: integer("affirmation_id").references(() => affirmations.id, {
       onDelete: "set null",
     }),
@@ -139,23 +144,29 @@ export const affirmationCheckins = pgTable(
   "affirmation_checkins",
   {
     id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
     date: date("date").notNull(),
     slot: affirmationSlot("slot").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (table) => [unique().on(table.date, table.slot)]
+  (table) => [unique().on(table.userId, table.date, table.slot)]
 );
 
 // One journal entry per day.
-export const journalEntries = pgTable("journal_entries", {
-  id: serial("id").primaryKey(),
-  date: date("date").notNull().unique(),
-  content: text("content").notNull().default(""),
-  gratitude: text("gratitude"),
-  mood: varchar("mood", { length: 20 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+    date: date("date").notNull(),
+    content: text("content").notNull().default(""),
+    gratitude: text("gratitude"),
+    mood: varchar("mood", { length: 20 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.date)]
+);
 
 // One quick emotional check-in per hour. Keeping this separate from the
 // journal's daily mood preserves the way feelings change throughout a day.
@@ -163,39 +174,46 @@ export const emotionalCheckins = pgTable(
   "emotional_checkins",
   {
     id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
     date: date("date").notNull(),
     hour: integer("hour").notNull(),
     emotion: varchar("emotion", { length: 30 }).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [unique().on(table.date, table.hour)]
+  (table) => [unique().on(table.userId, table.date, table.hour)]
 );
 
 // A reusable daily window controls which hourly check-ins make up the day.
-// This app currently has one local profile, keyed as "default".
+// One row per user.
 export const emotionalTrackingSettings = pgTable("emotional_tracking_settings", {
   id: serial("id").primaryKey(),
-  profileKey: varchar("profile_key", { length: 50 }).notNull().default("default").unique(),
+  userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
   startHour: integer("start_hour").notNull().default(7),
   endHour: integer("end_hour").notNull().default(22),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Personal additions to the built-in emotion palette.
-export const customEmotions = pgTable("custom_emotions", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 60 }).notNull().unique(),
-  emoji: varchar("emoji", { length: 20 }).notNull().default("◌"),
-  category: emotionCategory("category").notNull(),
-  active: boolean("active").notNull().default(true),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const customEmotions = pgTable(
+  "custom_emotions",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+    name: varchar("name", { length: 60 }).notNull(),
+    emoji: varchar("emoji", { length: 20 }).notNull().default("◌"),
+    category: emotionCategory("category").notNull(),
+    active: boolean("active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.name)]
+);
 
 // Point-in-time savings (FD, mutual fund, emergency fund, etc.) with running balance.
 export const financeAccounts = pgTable("finance_accounts", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   name: varchar("name", { length: 200 }).notNull(),
   type: financeAccountType("type").notNull().default("other"),
   balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
@@ -206,18 +224,24 @@ export const financeAccounts = pgTable("finance_accounts", {
 // A dated, month-level valuation. Snapshot items copy the account name/type so
 // historical reports remain intact even if a live account is later renamed or
 // removed.
-export const financeSnapshots = pgTable("finance_snapshots", {
-  id: serial("id").primaryKey(),
-  month: varchar("month", { length: 7 }).notNull().unique(), // "2026-09"
-  snapshotDate: date("snapshot_date").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const financeSnapshots = pgTable(
+  "finance_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+    month: varchar("month", { length: 7 }).notNull(), // "2026-09"
+    snapshotDate: date("snapshot_date").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.month)]
+);
 
 export const financeSnapshotItems = pgTable(
   "finance_snapshot_items",
   {
     id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
     snapshotId: integer("snapshot_id")
       .notNull()
       .references(() => financeSnapshots.id, { onDelete: "cascade" }),
@@ -239,6 +263,7 @@ export const financeSnapshotItems = pgTable(
 // Income / expense log entries for monthly cash-flow tracking.
 export const financeEntries = pgTable("finance_entries", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   date: date("date").notNull(),
   type: financeEntryType("type").notNull(),
   source: varchar("source", { length: 200 }).notNull(),
@@ -249,17 +274,23 @@ export const financeEntries = pgTable("finance_entries", {
 });
 
 // Monthly passive/total income target vs what actually lands, per the money roadmap.
-export const financeTargets = pgTable("finance_targets", {
-  id: serial("id").primaryKey(),
-  month: varchar("month", { length: 7 }).notNull().unique(), // "2026-10"
-  targetAmount: numeric("target_amount", { precision: 14, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const financeTargets = pgTable(
+  "finance_targets",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+    month: varchar("month", { length: 7 }).notNull(), // "2026-10"
+    targetAmount: numeric("target_amount", { precision: 14, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.month)]
+);
 
 // A client/freelance project. Optionally attached to a roadmap, which acts as
 // its "Goal" (e.g. the Career roadmap owns both the gym app and homestay projects).
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   roadmapId: integer("roadmap_id").references(() => roadmaps.id, {
     onDelete: "set null",
   }),
@@ -278,6 +309,7 @@ export const projects = pgTable("projects", {
 // A release/milestone within a project (e.g. v1.0, Beta, Launch). Tasks link to one.
 export const releases = pgTable("releases", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   projectId: integer("project_id")
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
@@ -294,6 +326,7 @@ export const releases = pgTable("releases", {
 // A work item within a project, optionally tied to a specific release.
 export const projectTasks = pgTable("project_tasks", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   projectId: integer("project_id")
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
@@ -318,6 +351,7 @@ export const projectTasks = pgTable("project_tasks", {
 // min" -> Health), same pattern as day-wise tasks.
 export const habits = pgTable("habits", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   title: varchar("title", { length: 200 }).notNull(),
   roadmapId: integer("roadmap_id").references(() => roadmaps.id, {
     onDelete: "set null",
@@ -340,6 +374,7 @@ export const habitLogs = pgTable(
   "habit_logs",
   {
     id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
     habitId: integer("habit_id")
       .notNull()
       .references(() => habits.id, { onDelete: "cascade" }),
@@ -353,6 +388,7 @@ export const habitLogs = pgTable(
 // copied so history still reads well after a task is renamed or deleted.
 export const pomodoroSessions = pgTable("pomodoro_sessions", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   date: date("date").notNull(),
   minutes: integer("minutes").notNull(),
   taskId: integer("task_id").references(() => projectTasks.id, { onDelete: "set null" }),
@@ -360,10 +396,10 @@ export const pomodoroSessions = pgTable("pomodoro_sessions", {
   completedAt: timestamp("completed_at").notNull().defaultNow(),
 });
 
-// Timer durations, same single "default" profile as emotional tracking.
+// Timer durations, one row per user.
 export const pomodoroSettings = pgTable("pomodoro_settings", {
   id: serial("id").primaryKey(),
-  profileKey: varchar("profile_key", { length: 50 }).notNull().default("default").unique(),
+  userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
   focusMinutes: integer("focus_minutes").notNull().default(25),
   shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
   longBreakMinutes: integer("long_break_minutes").notNull().default(15),
@@ -375,6 +411,7 @@ export const pomodoroSettings = pgTable("pomodoro_settings", {
 // intention (who or what it was for) and an optional reflection afterwards.
 export const hooponoponoRounds = pgTable("hooponopono_rounds", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   date: date("date").notNull(),
   repetitions: integer("repetitions").notNull().default(108),
   target: integer("target"),
@@ -390,6 +427,7 @@ export const habitRewardKind = pgEnum("habit_reward_kind", ["monthly_goal", "str
 // "streak" reward unlocks whenever a run of check-ins reaches streak_days.
 export const habitRewards = pgTable("habit_rewards", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
   habitId: integer("habit_id")
     .notNull()
     .references(() => habits.id, { onDelete: "cascade" }),
@@ -407,6 +445,7 @@ export const habitRewardClaims = pgTable(
   "habit_reward_claims",
   {
     id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
     rewardId: integer("reward_id")
       .notNull()
       .references(() => habitRewards.id, { onDelete: "cascade" }),

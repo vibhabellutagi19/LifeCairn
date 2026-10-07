@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
+import { requireUserId } from "@/lib/auth";
 import { SavingRow } from "@/components/AccountRow";
 import { FinanceEntryModal } from "@/components/FinanceEntryModal";
 import { FinanceEntryRow } from "@/components/FinanceEntryRow";
@@ -36,6 +37,7 @@ export default async function FinancePage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  const userId = await requireUserId();
   const { month: requestedMonth } = await searchParams;
   const monthKey = currentMonthKey();
   const selectedMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth ?? "")
@@ -44,11 +46,13 @@ export default async function FinancePage({
   const { start, end } = monthRangeISO(selectedMonth);
 
   const [accounts, monthEntries, monthTotals, snapshots, allSnapshotRows] = await Promise.all([
-    db.select().from(financeAccounts).orderBy(financeAccounts.id),
+    db.select().from(financeAccounts).where(eq(financeAccounts.userId, userId)).orderBy(financeAccounts.id),
     db
       .select()
       .from(financeEntries)
-      .where(and(gte(financeEntries.date, start), lte(financeEntries.date, end)))
+      .where(
+        and(eq(financeEntries.userId, userId), gte(financeEntries.date, start), lte(financeEntries.date, end))
+      )
       .orderBy(desc(financeEntries.date), desc(financeEntries.id)),
     db
       .select({
@@ -56,9 +60,15 @@ export default async function FinancePage({
         total: sql<string>`coalesce(sum(${financeEntries.amount}), 0)`,
       })
       .from(financeEntries)
-      .where(and(gte(financeEntries.date, start), lte(financeEntries.date, end)))
+      .where(
+        and(eq(financeEntries.userId, userId), gte(financeEntries.date, start), lte(financeEntries.date, end))
+      )
       .groupBy(financeEntries.type),
-    db.select().from(financeSnapshots).orderBy(desc(financeSnapshots.month)),
+    db
+      .select()
+      .from(financeSnapshots)
+      .where(eq(financeSnapshots.userId, userId))
+      .orderBy(desc(financeSnapshots.month)),
     db
       .select({
         month: financeSnapshots.month,
@@ -73,6 +83,7 @@ export default async function FinancePage({
       })
       .from(financeSnapshotItems)
       .innerJoin(financeSnapshots, eq(financeSnapshotItems.snapshotId, financeSnapshots.id))
+      .where(eq(financeSnapshotItems.userId, userId))
       .orderBy(desc(financeSnapshots.month), financeSnapshotItems.sortOrder),
   ]);
 

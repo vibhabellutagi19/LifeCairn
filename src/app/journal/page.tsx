@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { journalEntries } from "@/db/schema";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { JumpToDateForm } from "@/components/JumpToDateForm";
+import { requireUserId } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { formatDateLong } from "@/lib/format";
 
@@ -18,9 +19,11 @@ const MOOD_EMOJI: Record<string, string> = {
 };
 
 export default async function JournalPage() {
+  const userId = await requireUserId();
   const entries = await db
     .select()
     .from(journalEntries)
+    .where(eq(journalEntries.userId, userId))
     .orderBy(desc(journalEntries.date))
     .limit(60);
 

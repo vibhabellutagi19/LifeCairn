@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { pomodoroSessions, pomodoroSettings } from "@/db/schema";
+import { pomodoroSessions, pomodoroSettings, projectTasks } from "@/db/schema";
+import { requireUserId } from "@/lib/auth";
+import { ownsRow } from "@/lib/ownership";
 
 function isISODate(value: string) {
   return /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value);
@@ -19,24 +21,32 @@ export async function logPomodoroSession(
   taskId: number | null,
   taskTitle: string | null
 ) {
+  const userId = await requireUserId();
   const safeMinutes = clampMinutes(minutes, 240);
   if (!isISODate(date) || safeMinutes === null) return;
+  const safeTaskId = taskId && Number.isInteger(taskId) ? taskId : null;
+  if (!(await ownsRow(projectTasks, safeTaskId, userId))) return;
 
   await db.insert(pomodoroSessions).values({
+    userId,
     date,
     minutes: safeMinutes,
-    taskId: taskId && Number.isInteger(taskId) ? taskId : null,
+    taskId: safeTaskId,
     taskTitle: taskTitle?.trim().slice(0, 300) || null,
   });
   revalidatePath("/pomodoro");
 }
 
 export async function deletePomodoroSession(id: number) {
-  await db.delete(pomodoroSessions).where(eq(pomodoroSessions.id, id));
+  const userId = await requireUserId();
+  await db
+    .delete(pomodoroSessions)
+    .where(and(eq(pomodoroSessions.id, id), eq(pomodoroSessions.userId, userId)));
   revalidatePath("/pomodoro");
 }
 
 export async function savePomodoroSettings(focus: number, shortBreak: number, longBreak: number) {
+  const userId = await requireUserId();
   const focusMinutes = clampMinutes(focus, 180);
   const shortBreakMinutes = clampMinutes(shortBreak, 60);
   const longBreakMinutes = clampMinutes(longBreak, 90);
@@ -45,8 +55,8 @@ export async function savePomodoroSettings(focus: number, shortBreak: number, lo
   const values = { focusMinutes, shortBreakMinutes, longBreakMinutes, updatedAt: new Date() };
   await db
     .insert(pomodoroSettings)
-    .values({ profileKey: "default", ...values })
-    .onConflictDoUpdate({ target: pomodoroSettings.profileKey, set: values });
+    .values({ userId, ...values })
+    .onConflictDoUpdate({ target: pomodoroSettings.userId, set: values });
   revalidatePath("/pomodoro");
   return { focusMinutes, shortBreakMinutes, longBreakMinutes };
 }

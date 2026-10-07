@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clsx } from "clsx";
+import { UserButton } from "@clerk/nextjs";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", emoji: "🏠" },
@@ -61,11 +62,13 @@ export function Sidebar() {
     <>
       <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between border-b-3 border-ink bg-surface px-4 py-2 md:hidden">
         <Link href="/" className="min-w-0" onClick={() => setMobileOpen(false)}>
-          <span className="block truncate font-display text-xl font-bold tracking-tight">THE ROADMAP</span>
+          <span className="block truncate font-display text-xl font-bold tracking-tight">LIFECAIRN</span>
           <span className="block text-[10px] font-semibold uppercase tracking-widest text-muted">
             Oct &rarr; Dec 2026
           </span>
         </Link>
+        <div className="flex shrink-0 items-center gap-3">
+        <UserButton />
         <button
           type="button"
           aria-label="Open navigation"
@@ -78,6 +81,7 @@ export function Sidebar() {
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </button>
+        </div>
       </header>
 
       {mobileOpen ? (
@@ -126,7 +130,7 @@ export function Sidebar() {
         <div className={clsx("flex items-start gap-3", collapsed ? "justify-center p-3" : "justify-between p-6")}>
           {!collapsed ? (
             <Link href="/" className="block min-w-0">
-              <span className="font-display text-2xl font-bold tracking-tight">THE ROADMAP</span>
+              <span className="font-display text-2xl font-bold tracking-tight">LIFECAIRN</span>
               <span className="mt-1 block text-xs font-semibold uppercase tracking-widest text-muted">
                 Oct &rarr; Dec 2026
               </span>
@@ -149,6 +153,9 @@ export function Sidebar() {
         >
           {navLinks()}
         </nav>
+        <div className={clsx("absolute bottom-0 left-0 right-0 border-t-3 border-ink p-4", collapsed && "flex justify-center px-2")}>
+          <UserButton showName={!collapsed} />
+        </div>
       </aside>
     </>
   );

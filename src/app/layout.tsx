@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
+import { ClerkProvider, Show } from "@clerk/nextjs";
 import { Sidebar } from "@/components/Sidebar";
 import "./globals.css";
 
@@ -15,7 +16,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "The Roadmap",
+  title: "LifeCairn",
   description: "Career, money, health & relationship tracker",
 };
 
@@ -26,10 +27,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${spaceGrotesk.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-dvh overflow-x-hidden bg-background text-ink md:flex">
-        <Sidebar />
-        <main className="min-w-0 max-w-full flex-1 px-4 py-5 pb-10 sm:px-6 md:px-10 md:py-10">
-          {children}
-        </main>
+        <ClerkProvider>
+          <Show when="signed-in">
+            <Sidebar />
+          </Show>
+          <main className="min-w-0 max-w-full flex-1 px-4 py-5 pb-10 sm:px-6 md:px-10 md:py-10">
+            {children}
+          </main>
+        </ClerkProvider>
       </body>
     </html>
   );

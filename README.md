@@ -1,4 +1,4 @@
-# The Roadmap
+# LifeCairn
 
 A local-first tracker for your Oct–Dec 2026 roadmap: Career, Money, Health, and Relationship. Neo-brutalist, warm & bold — built with Next.js, Tailwind, Drizzle ORM, and Postgres.
 

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases } from "@/db/schema";
+import { requireUserId } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { NewProjectTaskModal } from "@/components/NewProjectTaskModal";
 import { TaskSearchList } from "@/components/TaskSearchList";
@@ -14,11 +15,14 @@ export default async function ProjectTasksPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const userId = await requireUserId();
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
 
-  const project = await db.query.projects.findFirst({ where: eq(projects.id, id) });
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, id), eq(projects.userId, userId)),
+  });
   if (!project) notFound();
 
   const [tasks, projectReleases] = await Promise.all([

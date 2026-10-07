@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projects, releases } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader, Textarea } from "@/components/ui";
+import { requireUserId } from "@/lib/auth";
 import { createRelease } from "@/lib/actions/projects";
 import { ReleaseRow } from "@/components/ReleaseRow";
 
@@ -14,11 +15,14 @@ export default async function ProjectReleasesPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const userId = await requireUserId();
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
 
-  const project = await db.query.projects.findFirst({ where: eq(projects.id, id) });
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, id), eq(projects.userId, userId)),
+  });
   if (!project) notFound();
 
   const projectReleases = await db
