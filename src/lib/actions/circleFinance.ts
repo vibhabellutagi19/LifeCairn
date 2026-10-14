@@ -24,5 +24,5 @@ export async function setFinanceShare(circleId: number, level: string | null) {
       .values({ circleId, ownerId: userId, level })
       .onConflictDoUpdate({ target: [financeShares.circleId, financeShares.ownerId], set: { level } });
   }
-  revalidatePath(`/circles/${circleId}`);
+  revalidatePath(`/circles/${circleId}`, "layout");
 }

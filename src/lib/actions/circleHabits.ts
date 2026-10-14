@@ -33,7 +33,7 @@ export async function setHabitShare(circleId: number, habitId: number, visibilit
       .values({ habitId, circleId, ownerId: userId, visibility })
       .onConflictDoUpdate({ target: [habitShares.habitId, habitShares.circleId], set: { visibility } });
   }
-  revalidatePath(`/circles/${circleId}`);
+  revalidatePath(`/circles/${circleId}`, "layout");
 }
 
 // Cheer on a circle-mate's shared habit for today; tap again to take it back.
@@ -62,5 +62,5 @@ export async function toggleHabitReaction(circleId: number, habitId: number, emo
   const existing = await db.query.habitReactions.findFirst({ where });
   if (existing) await db.delete(habitReactions).where(where);
   else await db.insert(habitReactions).values({ habitId, circleId, fromUserId: userId, date: todayISO(), emoji });
-  revalidatePath(`/circles/${circleId}`);
+  revalidatePath(`/circles/${circleId}`, "layout");
 }

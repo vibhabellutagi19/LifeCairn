@@ -24,7 +24,7 @@ export type CircleFormState = { ok: boolean; message: string } | null;
 function revalidateCircles(circleId?: number) {
   revalidatePath("/circles");
   revalidatePath("/");
-  if (circleId) revalidatePath(`/circles/${circleId}`);
+  if (circleId) revalidatePath(`/circles/${circleId}`, "layout");
 }
 
 // Leaving or being removed withdraws what that person shared into the circle
