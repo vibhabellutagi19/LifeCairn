@@ -45,7 +45,7 @@ Stop Postgres when you're done: `npm run docker:down` (your data persists in a D
 
 ## Deploying to EC2
 
-Follow [the ECR and SSM deployment guide](deploy/EC2-SSM.md). Run [deploy/push-ecr.sh](deploy/push-ecr.sh) on your computer to build and push the app and database tools images. EC2 pulls those images and runs them with PostgreSQL and Caddy. Configure Clerk authentication using the guide before public access.
+Follow [the deployment guide](DEPLOY.md). Run [deploy/push-ecr.sh](deploy/push-ecr.sh) on your computer to build and push the app and database tools images. EC2 pulls those images and runs them with PostgreSQL and Caddy. Configure Clerk authentication using the guide before public access.
 
 ## Notes
 

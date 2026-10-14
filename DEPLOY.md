@@ -1,153 +1,260 @@
-# Deploying to AWS EC2 (free tier)
+# Deploying LifeCairn to AWS EC2 (Ubuntu)
 
-Next.js 16 + Clerk + Postgres on a single EC2 instance, with nginx and HTTPS in front.
+Architecture: you build Docker images on your computer and push them to a private Amazon ECR repository. The EC2 instance only pulls and runs them (app + PostgreSQL + Caddy for HTTPS). **Nothing is compiled on EC2**, which avoids out-of-memory failures on small instances.
 
-## 1. Launch the instance
+These are manual steps you run yourself in the AWS Console and in terminals. Charges can apply for EC2, public IPv4, EBS and ECR storage; set a billing alarm.
 
-- **Instance type:** `t3.micro` (or `t2.micro`, whichever your account marks free-tier eligible). 1 GB RAM, so swap is required (step 2).
-- **AMI:** Ubuntu 24.04 LTS.
-- **Storage:** 20-30 GB gp3 (free tier covers up to 30 GB).
-- **Security group:** allow 22 (SSH, restricted to your IP), 80, 443.
-- **Elastic IP:** allocate one and attach it. AWS charges for public IPv4 addresses; free-tier accounts get 750 hours/month. Release it if you stop using the instance.
-- **Account credits:** accounts created after July 2025 use a credit-based free plan instead of the old 12-month tier. Check the Billing console for what you have.
-- Set a billing alarm.
+You will need: an AWS account, the AWS CLI configured on your computer, Docker Desktop with Buildx, a Clerk application, and (for HTTPS) a domain name.
 
-## 2. Prepare the server
+Replace `YOUR_REGION`, `YOUR_ACCOUNT`, and similar placeholders with your own values.
+
+## 1. Create the ECR repository and IAM role
+
+**ECR repository** (Console → ECR → Private registry → Repositories → Create repository):
+
+- Name: `lifecairn`
+- Tag immutability: enabled
+
+You can skip this: `deploy/push-ecr.sh` creates the repository if it is missing.
+
+**IAM role for the instance** (Console → IAM → Roles → Create role):
+
+1. Trusted entity: AWS service → EC2.
+2. Attach the policy `AmazonEC2ContainerRegistryReadOnly`.
+3. Name it `lifecairn-ec2`.
+
+The instance uses this role to pull images, so no AWS access keys are stored on the server.
+
+## 2. Launch the EC2 instance
+
+Console → EC2 → Launch instance:
+
+| Setting | Value |
+| --- | --- |
+| Name | `lifecairn` |
+| AMI | Ubuntu Server 24.04 LTS |
+| Architecture | x86_64 (recommended; remember your choice for step 4) |
+| Instance type | `t3.small` (2 GB) recommended; `t3.micro` (1 GB) works for running only, since nothing is built on it |
+| Key pair | Create a new key pair (RSA, `.pem`) and save it; you cannot download it again |
+| Network | Default VPC, auto-assign public IP enabled |
+| Storage | 20 GB gp3 |
+| Advanced → IAM instance profile | `lifecairn-ec2` |
+
+**Security group** (create new), inbound rules:
+
+| Port | Source | Purpose |
+| --- | --- | --- |
+| 22 | My IP | SSH |
+| 80 | Anywhere | HTTP / certificate issuance |
+| 443 | Anywhere | HTTPS |
+
+Do not open 3000 or 5432.
+
+After launch, allocate an **Elastic IP** (EC2 → Elastic IPs → Allocate, then Associate with the instance) so the address survives restarts. Release it if you delete the instance.
+
+## 3. Prepare the server
+
+On your computer:
 
 ```bash
-ssh -i key.pem ubuntu@<elastic-ip>
+chmod 400 /path/to/key.pem
+ssh -i /path/to/key.pem ubuntu@YOUR_ELASTIC_IP
+```
 
-# swap: next build will OOM on 1 GB without it
+On the instance, add a small swap file (safety net on small instances):
+
+```bash
 sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
 sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-
-# Node 22, git, nginx, docker
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs git nginx docker.io docker-compose-v2
-sudo usermod -aG docker ubuntu && sudo npm i -g pm2
 ```
 
-Log out and back in so the docker group applies.
-
-## 3. Database
-
-**Option A: Postgres in Docker on the same box.** Uses the repo's `docker-compose.yml`. Before deploying, change the default `roadmap/roadmap` password and bind the port to localhost only (`"127.0.0.1:5432:5432"`).
-
-**Option B: external Postgres** (Neon, Supabase, or RDS `db.t3.micro`). Frees RAM on the instance and gives you managed backups.
-
-## 4. Deploy the app
+Install Docker and Compose:
 
 ```bash
-git clone <your-repo> roadmap && cd roadmap
-cp .env.example .env      # set DATABASE_URL and the Clerk keys
-docker compose up -d      # if using Option A
-npm ci
-npm run db:push
-npm run build
-pm2 start npm --name roadmap -- start -- -p 6001
-pm2 save && pm2 startup   # run the command it prints so the app survives reboots
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git nano openssl unzip
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+. /etc/os-release
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${UBUNTU_CODENAME:-$VERSION_CODENAME} stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
 ```
 
-`next start` defaults to port 3000; `-p 6001` keeps it consistent with dev.
-
-To seed fresh data instead of migrating (see below): `SEED_USER_ID=user_... npm run db:seed`.
-
-## 5. Nginx and HTTPS
-
-Clerk production instances require HTTPS on a real domain. Point the domain's A record at the Elastic IP, then:
-
-```nginx
-# /etc/nginx/sites-available/roadmap
-server {
-  server_name yourdomain.com;
-  location / {
-    proxy_pass http://127.0.0.1:6001;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $remote_addr;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-```
+Install the AWS CLI v2 (Ubuntu's apt package is not suitable):
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/roadmap /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
+curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o awscliv2.zip
+unzip -q awscliv2.zip && sudo ./aws/install && rm -rf aws awscliv2.zip
 ```
 
-## 6. Clerk
-
-In the Clerk dashboard, create a **Production** instance and add your domain. Put the `pk_live_` / `sk_live_` keys in `.env` and add the DNS records Clerk asks for. Re-create your invitations there, since dev and prod instances have separate users.
-
-`NEXT_PUBLIC_*` values are baked in at build time, so rebuild after changing them:
+Verify:
 
 ```bash
-npm run build && pm2 restart roadmap
+sudo docker version
+sudo docker compose version
+aws --version
+uname -m                      # x86_64 -> linux/amd64, aarch64 -> linux/arm64
+aws sts get-caller-identity   # should show the lifecairn-ec2 role
 ```
 
-## 7. Copying your existing local data to EC2
+If `get-caller-identity` fails, the IAM role is not attached: EC2 → Actions → Security → Modify IAM role.
 
-### Dump locally
+## 4. Build and push images (on your computer)
+
+Make sure Docker Desktop is running and the AWS CLI is authenticated (`aws sts get-caller-identity`). Your identity needs ECR push permissions (`ecr:GetAuthorizationToken`, `CreateRepository`, `DescribeRepositories`, `DescribeImages`, `BatchCheckLayerAvailability`, `InitiateLayerUpload`, `UploadLayerPart`, `CompleteLayerUpload`, `PutImage`).
+
+From the repo root:
 
 ```bash
-docker compose exec -T db pg_dump -U roadmap -d roadmap --no-owner --no-acl -Fc > roadmap.dump
+export AWS_REGION=YOUR_REGION
+# export AWS_PROFILE=YOUR_PROFILE        # if you use a named profile
+export PLATFORM=linux/amd64              # must match `uname -m` on EC2
+export NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+
+bash deploy/push-ecr.sh
 ```
 
-### Copy to EC2
+The script builds the app and database-tools images, pushes both, and prints:
+
+```
+APP_IMAGE=...
+TOOLS_IMAGE=...
+```
+
+Copy these. The publishable key is baked into the image at build time. Never pass `CLERK_SECRET_KEY` or `DATABASE_URL` to the build. Tags are immutable, so each run uses a new timestamp tag.
+
+## 5. Get the deployment files onto EC2
+
+Push the repo (including `deploy/`) to GitHub, then on the instance:
 
 ```bash
-scp -i key.pem roadmap.dump ubuntu@<elastic-ip>:~/
+git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git ~/lifecairn
+cd ~/lifecairn
 ```
 
-### Restore on EC2
+For a private repo, use your GitHub username and a read-only token when prompted.
 
-Make sure the app's `.env` points at the EC2 database first.
+## 6. Configure environment variables
 
 ```bash
-# Option A: Postgres in Docker on the box
-docker compose up -d
-docker compose exec -T db pg_restore -U roadmap -d roadmap --clean --if-exists --no-owner < roadmap.dump
-
-# Option B: external Postgres
-pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" roadmap.dump
+cd ~/lifecairn
+cp deploy/ec2.env.example deploy/ec2.env
+chmod 600 deploy/ec2.env
+openssl rand -hex 32       # use as POSTGRES_PASSWORD
+nano deploy/ec2.env
 ```
 
-Then run `npm run db:push` to confirm the schema matches.
+Fill in:
 
-### Fix the user id
-
-Every row is keyed by a Clerk `user_id`, and a production Clerk instance gives you a different id than your dev one. Pick one:
-
-- **Keep the Clerk dev instance on EC2.** Use the same `pk_test_` / `sk_test_` keys. Your id is unchanged and the data works as is. Dev instances show a "development mode" banner and don't support custom domains.
-- **Move to a Clerk production instance.** Sign in once on EC2 to create your new user, then copy the new `user_...` id from the Clerk dashboard. `db:claim` only handles rows with `user_id = 'legacy'`, so remap first, then claim:
-
-```sql
--- psql on EC2: list tables that have user_id
-SELECT table_name FROM information_schema.columns
-WHERE column_name = 'user_id' AND table_schema = 'public';
-
--- repeat for each table
-UPDATE <table> SET user_id = 'legacy' WHERE user_id = 'user_OLD';
+```dotenv
+APP_IMAGE=<printed by push-ecr.sh>
+TOOLS_IMAGE=<printed by push-ecr.sh>
+SITE_ADDRESS=your-domain.example      # or :80 for an HTTP-only test
+POSTGRES_PASSWORD=<generated>
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...   # same key used for the build
+CLERK_SECRET_KEY=sk_...                    # from the same Clerk instance
 ```
+
+The database password is fixed when the volume is first created; changing it later does not change the existing database. Never commit `deploy/ec2.env`.
+
+## 7. Log in to ECR and pull
 
 ```bash
-npm run db:claim -- user_NEW
+export AWS_REGION=YOUR_REGION
+export ECR_REGISTRY=YOUR_ACCOUNT.dkr.ecr.YOUR_REGION.amazonaws.com
+
+aws ecr get-login-password --region "$AWS_REGION" \
+  | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+cd ~/lifecairn
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools pull app tools db
 ```
 
-Per-user unique constraints (journal date, finance month, settings) can collide if you've already created rows under the new id, so sign in but don't add data until after the claim.
+Always use `sudo docker login`: credentials are stored per user, and the compose commands run with `sudo`. Login tokens expire after 12 hours.
 
-This is a one-time copy. Pick either local or EC2 as the source of truth afterwards.
-
-## Updating later
+## 8. Create the database schema
 
 ```bash
-git pull && npm ci && npm run db:push && npm run build && pm2 restart roadmap
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d db
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm tools
 ```
 
-## Gotchas
+This creates a new, empty database. Existing local data needs a separate export/import.
 
-- **Backups:** if Postgres runs on the instance, set up a nightly `pg_dump` to S3 or somewhere off the box.
-- **Builds:** if the build is still too heavy for 1 GB, build locally or in CI and copy `.next`, or set `output: "standalone"` in `next.config.ts` to shrink what you ship.
-- **Secrets:** never commit `.env`; change the default Postgres password.
+## 9. Start the app
+
+```bash
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build app
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml ps
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml logs --tail=100 app
+```
+
+The app listens on `127.0.0.1:3000` on the instance only. To test before enabling public access, tunnel from your computer:
+
+```bash
+ssh -i /path/to/key.pem -L 6003:localhost:3000 ubuntu@YOUR_ELASTIC_IP
+```
+
+then open http://localhost:6003.
+
+## 10. Enable public HTTPS
+
+1. Point your domain's DNS **A record** at the Elastic IP.
+2. In Clerk, configure the production instance and your domain, and use its production keys in `deploy/ec2.env`. If the publishable key changed, rebuild and push new images (step 4) and update `APP_IMAGE` / `TOOLS_IMAGE`. Clerk development and production have separate user pools; moving existing data requires remapping owner IDs.
+3. Set `SITE_ADDRESS` to your domain, then start the proxy:
+
+```bash
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d proxy
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml logs --tail=100 proxy
+```
+
+Caddy obtains and renews the certificate automatically once DNS and ports 80/443 work. Open `https://your-domain.example` and sign in.
+
+## 11. Deploy updates
+
+On your computer: `bash deploy/push-ecr.sh` (new tag each time). Then on EC2:
+
+```bash
+cd ~/lifecairn
+git pull --ff-only
+nano deploy/ec2.env     # update APP_IMAGE and TOOLS_IMAGE together
+
+aws ecr get-login-password --region "$AWS_REGION" \
+  | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools pull app tools
+
+# only if the schema changed (back up first):
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm tools
+
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build app
+```
+
+Rollback: set the previous `APP_IMAGE` and `TOOLS_IMAGE` and recreate the app. This does not undo database changes.
+
+## Backups and data safety
+
+PostgreSQL data lives in a Docker volume on this instance, which is not an off-instance backup. Back up regularly:
+
+```bash
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml exec -T db \
+  pg_dump -U lifecairn lifecairn > ~/lifecairn-$(date +%F).sql
+```
+
+Copy dumps off the instance (for example to S3). **Never run `docker compose down -v`**; it deletes the database volume.
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `aws: command not found` on EC2 | Install AWS CLI v2 (step 3) |
+| `Unable to locate credentials` / `AccessDenied` on EC2 | Attach the `lifecairn-ec2` IAM role to the instance |
+| `no basic auth credentials` on pull | Log in with `sudo docker login`, and log in again if 12 hours have passed |
+| `exec format error` / no matching manifest | `PLATFORM` doesn't match `uname -m`; rebuild with the right one |
+| Pull hangs | Instance lacks outbound internet or HTTPS egress |
+| Push fails from your computer | Your AWS identity lacks ECR push permissions |
+| No certificate | Check DNS A record and that ports 80/443 are open in the security group |
