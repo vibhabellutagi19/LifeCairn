@@ -13,7 +13,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed-projects": "tsx src/db/seedProjects.ts",
-    "db:claim": "tsx src/db/claimLegacy.ts"
+    "db:claim": "tsx src/db/claimLegacy.ts",
+    "db:export": "tsx src/db/exportUser.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.11",

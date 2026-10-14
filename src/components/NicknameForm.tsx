@@ -22,7 +22,8 @@ export function NicknameForm({
   if (variant === "prompt" && nickname && !state?.ok) return null;
 
   const form = (
-    <form action={formAction} className={variant === "prompt" ? "flex flex-col gap-3 sm:flex-row sm:items-end" : "space-y-3"}>
+    <form action={formAction} className="space-y-3">
+      <div className={variant === "prompt" ? "flex flex-col gap-3 sm:flex-row sm:items-end" : "space-y-3"}>
       <div className="flex-1">
         <label htmlFor={`nickname-${variant}`} className="mb-1 block text-xs font-bold uppercase tracking-wide">
           {variant === "prompt" ? "😺 What should the cat call you?" : "Nickname"}
@@ -42,8 +43,9 @@ export function NicknameForm({
       <Button type="submit" variant="primary" disabled={pending}>
         {pending ? "Saving…" : variant === "prompt" ? "Save nickname" : "Save"}
       </Button>
+      </div>
       {state ? (
-        <p role="status" className={clsx("text-sm font-bold", state.ok ? "text-green" : "text-pink", variant === "prompt" && "sm:basis-full")}>
+        <p role="status" className={clsx("text-sm font-bold", state.ok ? "text-green" : "text-pink")}>
           {state.message}
         </p>
       ) : null}

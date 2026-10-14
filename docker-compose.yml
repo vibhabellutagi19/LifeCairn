@@ -1,3 +1,5 @@
+name: roadmap # keep the original project name so compose reuses the existing roadmap-db-1 container and volume
+
 services:
   db:
     image: postgres:16-alpine

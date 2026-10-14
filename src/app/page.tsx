@@ -257,7 +257,7 @@ export default async function DashboardPage({
             </div>
             <h1 className="max-w-3xl font-display text-4xl font-bold leading-[0.95] tracking-[-0.05em] sm:text-5xl lg:text-7xl">
               Welcome home,
-              <span className="block text-yellow">Vibs.</span>
+              <span className="block text-yellow">{nickname ?? "friend"}.</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm font-semibold text-white/65 sm:text-base">
               {formatDateLong(today)}. Everything important is here, ready when you are.
