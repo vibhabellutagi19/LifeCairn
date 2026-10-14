@@ -6,7 +6,7 @@ import { projectTasks, projects, releases } from "@/db/schema";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { ReleaseRow } from "@/components/ReleaseRow";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { taskRefFor } from "@/lib/taskRef";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function ReleaseDetailPage({
 }: {
   params: Promise<{ id: string; releaseRef: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("projects");
   const { id: idParam, releaseRef } = await params;
   const id = Number(idParam);
   const releaseId = Number(releaseRef);

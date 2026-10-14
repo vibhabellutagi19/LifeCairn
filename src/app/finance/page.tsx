@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { SavingRow } from "@/components/AccountRow";
 import { FinanceEntryModal } from "@/components/FinanceEntryModal";
 import { FinanceEntryRow } from "@/components/FinanceEntryRow";
@@ -37,7 +37,7 @@ export default async function FinancePage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("finance");
   const { month: requestedMonth } = await searchParams;
   const monthKey = currentMonthKey();
   const selectedMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth ?? "")

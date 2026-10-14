@@ -47,6 +47,37 @@ export async function createProject(formData: FormData) {
   revalidateAll();
 }
 
+export async function updateProject(id: number, formData: FormData) {
+  const userId = await requireUserId();
+  const name = String(formData.get("name") || "").trim();
+  if (!name) return;
+  const client = String(formData.get("client") || "").trim();
+  const status = String(formData.get("status") || "Active");
+  const roadmapIdRaw = String(formData.get("roadmapId") || "");
+  const roadmapId = roadmapIdRaw ? Number(roadmapIdRaw) : null;
+  const startDate = String(formData.get("startDate") || "") || null;
+  const deadline = String(formData.get("deadline") || "") || null;
+  const rateValue = String(formData.get("rateValue") || "").trim();
+  const notes = String(formData.get("notes") || "").trim();
+  if (!(await ownsRow(roadmaps, roadmapId, userId))) return;
+
+  await db
+    .update(projects)
+    .set({
+      name,
+      client: client || null,
+      status,
+      roadmapId,
+      startDate,
+      deadline,
+      rateValue: rateValue || null,
+      notes: notes || null,
+    })
+    .where(and(eq(projects.id, id), eq(projects.userId, userId)));
+
+  revalidateAll(id);
+}
+
 export async function deleteProject(id: number) {
   const userId = await requireUserId();
   await db.delete(projects).where(and(eq(projects.id, id), eq(projects.userId, userId)));
@@ -233,6 +264,27 @@ export async function setProjectTaskRelease(
     .set({ releaseId })
     .where(and(eq(projectTasks.id, id), eq(projectTasks.userId, userId)));
   revalidateAll(projectId);
+}
+
+// Moves a task to another project. Releases belong to a project, so the
+// task's release link is cleared.
+export async function moveProjectTask(id: number, fromProjectId: number, toProjectId: number) {
+  const userId = await requireUserId();
+  if (fromProjectId === toProjectId) return;
+  if (!(await ownsRow(projects, toProjectId, userId))) return;
+
+  await db
+    .update(projectTasks)
+    .set({ projectId: toProjectId, releaseId: null })
+    .where(
+      and(
+        eq(projectTasks.id, id),
+        eq(projectTasks.projectId, fromProjectId),
+        eq(projectTasks.userId, userId)
+      )
+    );
+  revalidateAll(fromProjectId);
+  revalidateAll(toProjectId);
 }
 
 export async function deleteProjectTask(id: number, projectId: number) {

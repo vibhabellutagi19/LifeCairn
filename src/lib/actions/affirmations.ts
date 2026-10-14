@@ -8,7 +8,7 @@ import {
   affirmationManifestations,
   affirmations,
 } from "@/db/schema";
-import { requireUserId } from "@/lib/auth";
+import { requireManifestationApp as requireUserId } from "@/lib/manifestationApp";
 
 export type AffirmationSlot = "morning" | "afternoon" | "evening";
 

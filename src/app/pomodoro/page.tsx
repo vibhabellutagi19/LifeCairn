@@ -4,7 +4,7 @@ import { pomodoroSessions, pomodoroSettings, projectTasks, projects, tasks as da
 import { PageHeader } from "@/components/ui";
 import { PomodoroTimer, type PomodoroTask } from "@/components/PomodoroTimer";
 import { PomodoroHistory } from "@/components/PomodoroHistory";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { rankFocusTasks } from "@/lib/focusNext";
 import { shiftDateISO, todayISO } from "@/lib/dates";
 import { formatDateShort } from "@/lib/format";
@@ -17,7 +17,7 @@ export default async function PomodoroPage({
 }: {
   searchParams: Promise<{ task?: string; start?: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("pomodoro");
   const { task: requestedTask, start } = await searchParams;
   const today = todayISO();
   const [openTasks, todaysTasks, leftoverTasks, settings, recentSessions, [allTime]] = await Promise.all([

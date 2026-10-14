@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { ClerkProvider, Show } from "@clerk/nextjs";
-import { Sidebar } from "@/components/Sidebar";
+import { SidebarLoader } from "@/components/SidebarLoader";
 import { clerkAppearance } from "@/lib/clerkAppearance";
 import "./globals.css";
 
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-dvh overflow-x-hidden bg-background text-ink md:flex">
         <ClerkProvider appearance={clerkAppearance}>
           <Show when="signed-in">
-            <Sidebar />
+            <SidebarLoader />
           </Show>
           <main className="min-w-0 max-w-full flex-1 px-4 py-5 pb-10 sm:px-6 md:px-10 md:py-10">
             {children}

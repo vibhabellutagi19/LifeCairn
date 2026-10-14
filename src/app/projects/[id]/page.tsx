@@ -5,7 +5,8 @@ import { db } from "@/db";
 import { projectTasks, projects, releases, roadmaps } from "@/db/schema";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
-import { requireUserId } from "@/lib/auth";
+import { EditProjectModal } from "@/components/EditProjectModal";
+import { requireModule } from "@/lib/moduleSettings";
 import { formatDateShort } from "@/lib/format";
 import { currentMonthKey, monthRangeISO, todayISO, weekRangeISO } from "@/lib/dates";
 import { isOpenTask } from "@/lib/taskStatus";
@@ -30,7 +31,7 @@ export default async function ProjectDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("projects");
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
@@ -40,7 +41,7 @@ export default async function ProjectDetailPage({
   });
   if (!project) notFound();
 
-  const [projectReleases, tasks, goal] = await Promise.all([
+  const [projectReleases, tasks, goal, allRoadmaps] = await Promise.all([
     db
       .select()
       .from(releases)
@@ -56,6 +57,11 @@ export default async function ProjectDetailPage({
           where: and(eq(roadmaps.id, project.roadmapId), eq(roadmaps.userId, userId)),
         })
       : Promise.resolve(undefined),
+    db
+      .select({ id: roadmaps.id, title: roadmaps.title })
+      .from(roadmaps)
+      .where(eq(roadmaps.userId, userId))
+      .orderBy(roadmaps.title),
   ]);
 
   const shipped = projectReleases.filter((r) => r.status === "released").length;
@@ -99,6 +105,20 @@ export default async function ProjectDetailPage({
                 <Badge color="yellow">Goal: {goal.title}</Badge>
               </Link>
             ) : null}
+            <EditProjectModal
+              project={{
+                id: project.id,
+                name: project.name,
+                client: project.client,
+                status: project.status,
+                roadmapId: project.roadmapId,
+                startDate: project.startDate,
+                deadline: project.deadline,
+                rateValue: project.rateValue,
+                notes: project.notes,
+              }}
+              roadmaps={allRoadmaps}
+            />
             <DeleteProjectButton id={project.id} />
           </div>
         }
@@ -194,6 +214,14 @@ export default async function ProjectDetailPage({
           </div>
           {tasks.length === 0 ? (
             <EmptyState>No tasks yet.</EmptyState>
+          ) : activeTasks.length === 0 ? (
+            <EmptyState>
+              No open tasks
+              {done || backlogCount
+                ? ` — ${[done ? `${done} done` : "", backlogCount ? `${backlogCount} in backlog` : ""].filter(Boolean).join(", ")}`
+                : ""}
+              .
+            </EmptyState>
           ) : (
             <div className="space-y-2">
               {activeTasks.map((t) => (

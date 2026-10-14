@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases } from "@/db/schema";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { PageHeader } from "@/components/ui";
 import { NewProjectTaskModal } from "@/components/NewProjectTaskModal";
 import { TaskSearchList } from "@/components/TaskSearchList";
@@ -15,7 +15,7 @@ export default async function ProjectTasksPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("projects");
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
@@ -25,13 +25,18 @@ export default async function ProjectTasksPage({
   });
   if (!project) notFound();
 
-  const [tasks, projectReleases] = await Promise.all([
+  const [tasks, projectReleases, allProjects] = await Promise.all([
     db
       .select()
       .from(projectTasks)
       .where(eq(projectTasks.projectId, id))
       .orderBy(projectTasks.sortOrder, projectTasks.id),
     db.select().from(releases).where(eq(releases.projectId, id)).orderBy(releases.sortOrder, releases.id),
+    db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(projects.name),
   ]);
 
   return (
@@ -60,7 +65,12 @@ export default async function ProjectTasksPage({
         }
       />
 
-      <TaskSearchList projectId={id} tasks={tasks} releases={projectReleases} />
+      <TaskSearchList
+        projectId={id}
+        tasks={tasks}
+        releases={projectReleases}
+        moveTargets={allProjects.filter((p) => p.id !== id)}
+      />
     </div>
   );
 }

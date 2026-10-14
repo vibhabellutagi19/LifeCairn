@@ -20,7 +20,8 @@ import {
   tasks,
 } from "@/db/schema";
 import { Badge, Card } from "@/components/ui";
-import { requireUserId } from "@/lib/auth";
+import { getDisabledModules, requireModule } from "@/lib/moduleSettings";
+import type { ModuleKey } from "@/lib/modules";
 import { customEmotionKey, EMOTIONS, type EmotionCategory } from "@/lib/emotions";
 import { formatDateShort, formatEUR } from "@/lib/format";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
@@ -70,12 +71,11 @@ async function loadPeriod(range: Range, today: string, userId: string) {
     db.select({ habitId: habitLogs.habitId, date: habitLogs.date }).from(habitLogs)
       .where(eq(habitLogs.userId, userId)),
     db.select().from(pomodoroSessions).where(inRange(pomodoroSessions.date, pomodoroSessions.userId)),
-    db.select({ date: emotionalCheckins.date, emotion: emotionalCheckins.emotion }).from(emotionalCheckins).where(inRange(emotionalCheckins.date, emotionalCheckins.userId)),
-    db.select({ id: customEmotions.id, name: customEmotions.name, emoji: customEmotions.emoji, category: customEmotions.category }).from(customEmotions)
-      .where(eq(customEmotions.userId, userId)),
-    db.select({ date: affirmationCheckins.date }).from(affirmationCheckins).where(inRange(affirmationCheckins.date, affirmationCheckins.userId)),
-    db.select({ date: journalEntries.date, content: journalEntries.content, gratitude: journalEntries.gratitude }).from(journalEntries).where(inRange(journalEntries.date, journalEntries.userId)),
-    db.select({ date: hooponoponoRounds.date, repetitions: hooponoponoRounds.repetitions }).from(hooponoponoRounds).where(inRange(hooponoponoRounds.date, hooponoponoRounds.userId)),
+    Promise.resolve([] as typeof emotionalCheckins.$inferSelect[]),
+    Promise.resolve([] as typeof customEmotions.$inferSelect[]),
+    Promise.resolve([] as typeof affirmationCheckins.$inferSelect[]),
+    Promise.resolve([] as typeof journalEntries.$inferSelect[]),
+    Promise.resolve([] as typeof hooponoponoRounds.$inferSelect[]),
     db.select({ type: financeEntries.type, amount: financeEntries.amount }).from(financeEntries).where(inRange(financeEntries.date, financeEntries.userId)),
     db
       .select({ id: milestones.id, title: milestones.title, status: milestones.status, targetDate: milestones.targetDate, roadmap: roadmaps.title })
@@ -87,7 +87,7 @@ async function loadPeriod(range: Range, today: string, userId: string) {
       .from(projectTasks)
       .innerJoin(projects, eq(projectTasks.projectId, projects.id))
       .where(inRange(projectTasks.dueDate, projectTasks.userId)),
-    db.select().from(affirmationManifestations).where(inRange(affirmationManifestations.manifestedOn, affirmationManifestations.userId)),
+    Promise.resolve([] as typeof affirmationManifestations.$inferSelect[]),
   ]);
 
   const days = daysIn(range);
@@ -233,7 +233,9 @@ export default async function ReviewPage({
 }: {
   searchParams: Promise<{ period?: string; anchor?: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("review");
+  const disabledModules = await getDisabledModules(userId);
+  const on = (key: ModuleKey) => !disabledModules.includes(key);
   const { period: periodParam, anchor: anchorParam } = await searchParams;
   const period = periodParam === "month" ? "month" : "week";
   const today = todayISO();
@@ -259,15 +261,16 @@ export default async function ReviewPage({
 
   const mostly = now.feelings.top[0];
   const headline = [
-    now.focus.minutes ? `focused ${hours(now.focus.minutes)}` : null,
-    now.habits.due ? `kept ${now.habits.percent}% of your habits` : null,
-    mostly ? `felt mostly ${mostly.emoji} ${mostly.label.toLowerCase()}` : null,
+    on("pomodoro") && now.focus.minutes ? `focused ${hours(now.focus.minutes)}` : null,
+    on("habits") && now.habits.due ? `kept ${now.habits.percent}% of your habits` : null,
+    on("manifestation") && mostly ? `felt mostly ${mostly.emoji} ${mostly.label.toLowerCase()}` : null,
   ].filter(Boolean);
 
   const focusMax = Math.max(1, ...now.days.map((d) => now.focus.byDay.get(d) ?? 0));
-  const atGlanceRows: { label: string; cell: (day: string) => { text: string; level: number; title: string } }[] = [
+  const atGlanceRows: { label: string; module: ModuleKey; cell: (day: string) => { text: string; level: number; title: string } }[] = [
     {
       label: "Mood",
+      module: "manifestation",
       cell: (day) => {
         const top = [...(now.feelings.byDay.get(day)?.values() ?? [])].sort((a, b) => b.count - a.count)[0];
         return { text: top?.emoji ?? "", level: top ? 0.35 : 0, title: top ? `Mostly ${top.emoji}` : "No check-ins" };
@@ -275,6 +278,7 @@ export default async function ReviewPage({
     },
     {
       label: "Habits",
+      module: "habits",
       cell: (day) => {
         const c = now.habits.byDay.get(day);
         return { text: c ? `${c.done}/${c.due}` : "", level: c && c.due ? c.done / c.due : 0, title: c ? `${c.done} of ${c.due} habits` : "" };
@@ -282,6 +286,7 @@ export default async function ReviewPage({
     },
     {
       label: "Focus",
+      module: "pomodoro",
       cell: (day) => {
         const m = now.focus.byDay.get(day) ?? 0;
         return { text: m ? `${m}` : "", level: m / focusMax, title: m ? `${m} min focused` : "" };
@@ -289,6 +294,7 @@ export default async function ReviewPage({
     },
     {
       label: "Affirm",
+      module: "manifestation",
       cell: (day) => {
         const n = now.practice.slotsByDay.get(day) ?? 0;
         return { text: n >= 3 ? "✓" : n ? `${n}/3` : "", level: n / 3, title: `${n} of 3 check-ins` };
@@ -296,16 +302,19 @@ export default async function ReviewPage({
     },
     {
       label: "Journal",
+      module: "journal",
       cell: (day) => ({ text: now.practice.journalDays.has(day) ? "✎" : "", level: now.practice.journalDays.has(day) ? 1 : 0, title: now.practice.journalDays.has(day) ? "Journaled" : "" }),
     },
     {
       label: "Hoʻopono",
+      module: "manifestation",
       cell: (day) => {
         const r = now.practice.hooByDay.get(day) ?? 0;
         return { text: r ? "🌺" : "", level: r ? 1 : 0, title: r ? `${r} repetitions` : "" };
       },
     },
   ];
+  const glanceRows = atGlanceRows.filter((row) => on(row.module));
   const rowColor: Record<string, string> = {
     Mood: "var(--pink)",
     Habits: "var(--green)",
@@ -356,11 +365,13 @@ export default async function ReviewPage({
 
           <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: "Focus", value: hours(now.focus.minutes), delta: <Delta now={now.focus.minutes} before={before.focus.minutes} unit="m" />, color: "bg-orange text-white" },
-              { label: "Habits kept", value: `${now.habits.percent}%`, delta: <Delta now={now.habits.percent} before={before.habits.percent} unit="%" />, color: "bg-green text-white" },
-              { label: "Feeling good", value: now.feelings.total ? `${now.feelings.positivePercent}%` : "–", delta: <Delta now={now.feelings.positivePercent} before={before.feelings.positivePercent} unit="%" />, color: "bg-pink text-white" },
-              { label: "Full affirmation days", value: String(now.practice.affirmationFullDays), delta: <Delta now={now.practice.affirmationFullDays} before={before.practice.affirmationFullDays} />, color: "bg-yellow text-ink" },
-            ].map((tile, i) => (
+              { module: "pomodoro", label: "Focus", value: hours(now.focus.minutes), delta: <Delta now={now.focus.minutes} before={before.focus.minutes} unit="m" />, color: "bg-orange text-white" },
+              { module: "habits", label: "Habits kept", value: `${now.habits.percent}%`, delta: <Delta now={now.habits.percent} before={before.habits.percent} unit="%" />, color: "bg-green text-white" },
+              { module: "manifestation", label: "Feeling good", value: now.feelings.total ? `${now.feelings.positivePercent}%` : "–", delta: <Delta now={now.feelings.positivePercent} before={before.feelings.positivePercent} unit="%" />, color: "bg-pink text-white" },
+              { module: "manifestation", label: "Full affirmation days", value: String(now.practice.affirmationFullDays), delta: <Delta now={now.practice.affirmationFullDays} before={before.practice.affirmationFullDays} />, color: "bg-yellow text-ink" },
+            ]
+              .filter((tile) => on(tile.module as ModuleKey))
+              .map((tile, i) => (
               <div key={tile.label} className={clsx("pomo-stat brut-border rounded-2xl p-4", tile.color)} style={{ animationDelay: `${i * 90}ms` }}>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-75">{tile.label}</p>
                 <p className="mt-1 font-display text-3xl font-bold">{tile.value}</p>
@@ -371,6 +382,7 @@ export default async function ReviewPage({
         </div>
       </section>
 
+      {glanceRows.length > 0 ? (
       <section aria-labelledby="glance-heading" className="mb-8">
         <h2 id="glance-heading" className="mb-3 font-display text-2xl font-bold sm:text-3xl">
           <span className="home-marker is-always">At a glance</span>
@@ -390,7 +402,7 @@ export default async function ReviewPage({
                 </tr>
               </thead>
               <tbody>
-                {atGlanceRows.map((row) => (
+                {glanceRows.map((row) => (
                   <tr key={row.label}>
                     <th scope="row" className="sticky left-0 z-10 bg-surface pr-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted">
                       {row.label}
@@ -416,8 +428,10 @@ export default async function ReviewPage({
           </div>
         </Card>
       </section>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {on("pomodoro") ? (
         <AreaCard emoji="🍅" title="Focus" href="/pomodoro" accent="border-t-orange">
           <p className="font-display text-4xl font-bold">{hours(now.focus.minutes)}</p>
           <p className="text-sm font-semibold text-muted">
@@ -437,7 +451,9 @@ export default async function ReviewPage({
             })}
           </div>
         </AreaCard>
+        ) : null}
 
+        {on("habits") ? (
         <AreaCard emoji="🔥" title="Habits" href="/habits" accent="border-t-green">
           <p className="font-display text-4xl font-bold">{now.habits.percent}%</p>
           <p className="text-sm font-semibold text-muted">
@@ -463,7 +479,9 @@ export default async function ReviewPage({
             <p className="mt-4 text-sm font-semibold text-muted">No habits tracked in this period.</p>
           )}
         </AreaCard>
+        ) : null}
 
+        {on("manifestation") ? (
         <AreaCard emoji="◌" title="Feelings" href="/manifestation" accent="border-t-pink">
           <p className="font-display text-4xl font-bold">{now.feelings.total}</p>
           <p className="text-sm font-semibold text-muted">hourly check-ins</p>
@@ -486,15 +504,19 @@ export default async function ReviewPage({
             <p className="mt-4 text-sm font-semibold text-muted">No feelings logged yet.</p>
           )}
         </AreaCard>
+        ) : null}
 
-        <AreaCard emoji="✨" title="Practice" href="/affirmations" accent="border-t-yellow">
+        {(on("manifestation") || on("journal")) ? (
+        <AreaCard emoji="✨" title="Practice" href={on("manifestation") ? "/affirmations" : "/journal"} accent="border-t-yellow">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { value: `${now.practice.affirmationFullDays}/${now.pastDays.length || 0}`, label: "full affirmation days" },
-              { value: String(now.practice.journalDays.size), label: "journal days" },
-              { value: String(now.practice.gratitude.length), label: "gratitude notes" },
-              { value: now.practice.hooReps.toLocaleString("en-IN"), label: `hoʻoponopono · ${now.practice.hooSessions}×` },
-            ].map((stat) => (
+              { module: "manifestation", value: `${now.practice.affirmationFullDays}/${now.pastDays.length || 0}`, label: "full affirmation days" },
+              { module: "journal", value: String(now.practice.journalDays.size), label: "journal days" },
+              { module: "journal", value: String(now.practice.gratitude.length), label: "gratitude notes" },
+              { module: "manifestation", value: now.practice.hooReps.toLocaleString("en-IN"), label: `hoʻoponopono · ${now.practice.hooSessions}×` },
+            ]
+              .filter((stat) => on(stat.module as ModuleKey))
+              .map((stat) => (
               <div key={stat.label} className="rounded-xl border-2 border-ink/10 bg-background p-3">
                 <p className="font-display text-2xl font-bold">{stat.value}</p>
                 <p className="text-[11px] font-semibold text-muted">{stat.label}</p>
@@ -502,15 +524,19 @@ export default async function ReviewPage({
             ))}
           </div>
         </AreaCard>
+        ) : null}
 
-        <AreaCard emoji="🧩" title="Work" href="/projects" accent="border-t-blue">
+        {(on("projects") || on("roadmaps")) ? (
+        <AreaCard emoji="🧩" title="Work" href={on("projects") ? "/projects" : "/roadmaps"} accent="border-t-blue">
           <div className="grid grid-cols-2 gap-3">
+            {on("projects") ? (
             <div className="rounded-xl border-2 border-ink/10 bg-background p-3">
               <p className="font-display text-2xl font-bold">
                 {now.projectTasks.done}/{now.projectTasks.total}
               </p>
               <p className="text-[11px] font-semibold text-muted">project tasks due, done</p>
             </div>
+            ) : null}
             <div className="rounded-xl border-2 border-ink/10 bg-background p-3">
               <p className="font-display text-2xl font-bold">
                 {now.dailyTasks.done}/{now.dailyTasks.total}
@@ -518,6 +544,8 @@ export default async function ReviewPage({
               <p className="text-[11px] font-semibold text-muted">daily tasks done</p>
             </div>
           </div>
+          {on("roadmaps") ? (
+          <>
           <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-muted">Milestones due</p>
           {now.milestones.length ? (
             <ul className="mt-2 space-y-1.5">
@@ -536,8 +564,12 @@ export default async function ReviewPage({
           ) : (
             <p className="mt-1 text-sm font-semibold text-muted">None this {period}.</p>
           )}
+          </>
+          ) : null}
         </AreaCard>
+        ) : null}
 
+        {on("finance") ? (
         <AreaCard emoji="💰" title="Money" href="/finance" accent="border-t-green">
           <p className={clsx("font-display text-4xl font-bold", now.money.net < 0 && "text-pink")}>{formatEUR(now.money.net)}</p>
           <p className="text-sm font-semibold text-muted">net cash flow</p>
@@ -552,9 +584,12 @@ export default async function ReviewPage({
             </div>
           </div>
         </AreaCard>
+        ) : null}
       </div>
 
-      <section aria-labelledby="highlights-heading" className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      {on("journal") || on("manifestation") ? (
+      <section aria-labelledby="highlights-heading" className={`mt-8 grid grid-cols-1 gap-6 ${on("journal") && on("manifestation") ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" : ""}`}>
+        {on("journal") ? (
         <div>
           <h2 id="highlights-heading" className="mb-3 font-display text-2xl font-bold sm:text-3xl">
             <span className="home-marker is-always">Grateful for</span>
@@ -582,6 +617,8 @@ export default async function ReviewPage({
             )}
           </Card>
         </div>
+        ) : null}
+        {on("manifestation") ? (
         <div>
           <h2 className="mb-3 font-display text-2xl font-bold sm:text-3xl">
             <span className="home-marker is-always">Wins</span>
@@ -603,7 +640,9 @@ export default async function ReviewPage({
             )}
           </Card>
         </div>
+        ) : null}
       </section>
+      ) : null}
     </div>
   );
 }

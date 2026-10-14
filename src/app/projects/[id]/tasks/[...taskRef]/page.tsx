@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases } from "@/db/schema";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { PageHeader } from "@/components/ui";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
+import { MoveTaskForm } from "@/components/MoveTaskForm";
 import { TaskDetailsForm } from "@/components/TaskDetailsForm";
-import { parseTaskRef } from "@/lib/taskRef";
+import { parseTaskRef, taskRefFor } from "@/lib/taskRef";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function TaskDetailPage({
 }: {
   params: Promise<{ id: string; taskRef: string[] }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("projects");
   const { id: idParam, taskRef } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
@@ -42,6 +43,14 @@ export default async function TaskDetailPage({
     .from(releases)
     .where(eq(releases.projectId, id))
     .orderBy(releases.sortOrder, releases.id);
+
+  const otherProjects = (
+    await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(projects.name)
+  ).filter((p) => p.id !== id);
 
   const release = projectReleases.find((r) => r.id === task.releaseId);
 
@@ -88,6 +97,16 @@ export default async function TaskDetailPage({
           notes={task.notes}
           estHours={task.estHours}
         />
+
+        {otherProjects.length > 0 ? (
+          <MoveTaskForm
+            id={task.id}
+            projectId={id}
+            taskRef={taskRefFor(task)}
+            hasRelease={task.releaseId !== null}
+            projects={otherProjects}
+          />
+        ) : null}
       </div>
     </div>
   );

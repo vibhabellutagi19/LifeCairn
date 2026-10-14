@@ -32,10 +32,12 @@ export function TaskSearchList({
   projectId,
   tasks,
   releases,
+  moveTargets,
 }: {
   projectId: number;
   tasks: Task[];
   releases: { id: number; name: string }[];
+  moveTargets: { id: number; name: string }[];
 }) {
   const [query, setQuery] = useState("");
 
@@ -99,6 +101,7 @@ export function TaskSearchList({
                     releaseId={t.releaseId}
                     releaseName={releaseName(t.releaseId)}
                     releases={releases}
+                    moveTargets={moveTargets}
                     detailHref={`/projects/${projectId}/tasks/${taskRefFor(t)}`}
                   />
                 ))}

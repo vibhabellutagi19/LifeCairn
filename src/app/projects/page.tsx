@@ -3,7 +3,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { projectTasks, projects, releases, roadmaps } from "@/db/schema";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Select, Textarea } from "@/components/ui";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { createProject } from "@/lib/actions/projects";
 import { FocusNextList } from "@/components/FocusNextList";
 import { rankFocusTasks } from "@/lib/focusNext";
@@ -11,7 +11,7 @@ import { rankFocusTasks } from "@/lib/focusNext";
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const userId = await requireUserId();
+  const userId = await requireModule("projects");
   const [allProjects, allRoadmaps, allReleases, openTasks] = await Promise.all([
     db.select().from(projects).where(eq(projects.userId, userId)).orderBy(projects.sortOrder, projects.id),
     db.select().from(roadmaps).where(eq(roadmaps.userId, userId)).orderBy(roadmaps.sortOrder, roadmaps.id),

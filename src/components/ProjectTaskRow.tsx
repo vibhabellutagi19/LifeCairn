@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { clsx } from "clsx";
 import {
   deleteProjectTask,
+  moveProjectTask,
   setProjectTaskDates,
   setProjectTaskPriority,
   setProjectTaskRelease,
@@ -45,6 +46,7 @@ export function ProjectTaskRow({
   projectName,
   detailHref,
   focusHref,
+  moveTargets,
 }: {
   id: number;
   projectId: number;
@@ -62,6 +64,8 @@ export function ProjectTaskRow({
   detailHref?: string;
   /** When set, shows a "🍅 Focus" link that opens the Pomodoro on this task. */
   focusHref?: string;
+  /** When set, shows a "Move to…" dropdown listing the other projects. */
+  moveTargets?: { id: number; name: string }[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [editingDates, setEditingDates] = useState(false);
@@ -188,6 +192,32 @@ export function ProjectTaskRow({
           </select>
         ) : releaseName ? (
           <span>{releaseName}</span>
+        ) : null}
+        {moveTargets && moveTargets.length > 0 ? (
+          <select
+            suppressHydrationWarning
+            disabled={isPending}
+            value=""
+            aria-label="Move task to another project"
+            title={releaseId ? "Moving clears the release link" : undefined}
+            onChange={(e) => {
+              const toId = Number(e.target.value);
+              const target = moveTargets.find((p) => p.id === toId);
+              if (!target) return;
+              if (!confirm(`Move this task to "${target.name}"?${releaseId ? " Its release link will be cleared." : ""}`)) return;
+              startTransition(() => {
+                moveProjectTask(id, projectId, toId);
+              });
+            }}
+            className="brut-border min-h-11 max-w-full rounded bg-surface px-2 py-1 text-xs font-bold uppercase normal-case sm:min-h-0 sm:px-1 sm:py-0.5 sm:text-[11px]"
+          >
+            <option value="">Move to…</option>
+            {moveTargets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         ) : null}
         {estHours ? <span>{estHours}h est.</span> : null}
       </div>

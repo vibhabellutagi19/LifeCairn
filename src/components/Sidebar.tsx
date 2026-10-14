@@ -6,20 +6,21 @@ import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 import { UserButton } from "@clerk/nextjs";
 import { Logo } from "@/components/Logo";
+import { MODULES, type ModuleKey } from "@/lib/modules";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; emoji: string; module?: ModuleKey }[] = [
   { href: "/", label: "Dashboard", emoji: "🏠" },
-  { href: "/roadmaps", label: "Roadmaps", emoji: "🗺️" },
-  { href: "/projects", label: "Projects", emoji: "🧩" },
-  { href: "/habits", label: "Habit Tracker", emoji: "🔥" },
-  { href: "/pomodoro", label: "Pomodoro", emoji: "🍅" },
-  { href: "/manifestation", label: "Manifestation", emoji: "◌" },
-  { href: "/finance", label: "Finance", emoji: "💰" },
-  { href: "/review", label: "Review", emoji: "📊" },
+  ...MODULES.map((m) => ({
+    href: m.href,
+    label: m.label,
+    emoji: m.emoji,
+    module: m.key,
+  })),
+  { href: "/circles", label: "Circles", emoji: "🫂" },
   { href: "/profile", label: "Profile", emoji: "👤" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ disabledModules }: { disabledModules: ModuleKey[] }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -38,7 +39,9 @@ export function Sidebar() {
     };
   }, [mobileOpen]);
 
-  const navLinks = (mobile = false) => NAV_ITEMS.map((item) => {
+  const visibleItems = NAV_ITEMS.filter((item) => !item.module || !disabledModules.includes(item.module));
+
+  const navLinks = (mobile = false) => visibleItems.map((item) => {
     const active = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
     return (
       <Link

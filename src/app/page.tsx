@@ -3,7 +3,6 @@ import { and, eq, gte, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   affirmationCheckins,
-  affirmations,
   customEmotions,
   emotionalCheckins,
   financeAccounts,
@@ -30,6 +29,9 @@ import { CountUp } from "@/components/CountUp";
 import { buildCatNudges } from "@/lib/catNudges";
 import { NicknameForm } from "@/components/NicknameForm";
 import { getNickname } from "@/lib/profile";
+import { getDisabledModules } from "@/lib/moduleSettings";
+import { getPendingInvites } from "@/lib/circleAccess";
+import type { ModuleKey } from "@/lib/modules";
 import { isActiveOnDate, rankFocusTasks } from "@/lib/focusNext";
 import { computeHabitStats } from "@/lib/habitStats";
 import { computeAffirmationStats } from "@/lib/affirmationStats";
@@ -46,6 +48,12 @@ function isISODate(value: string | undefined): value is string {
   return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
 }
 
+const STAT_COLS: Record<number, string> = {
+  1: "min-[420px]:grid-cols-1",
+  2: "min-[420px]:grid-cols-2",
+  3: "min-[420px]:grid-cols-3",
+};
+
 function formatWeekday(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short" });
 }
@@ -56,7 +64,12 @@ export default async function DashboardPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const userId = await requireUserId();
-  const nickname = await getNickname(userId);
+  const [nickname, disabledModules, pendingInvites] = await Promise.all([
+    getNickname(userId),
+    getDisabledModules(userId),
+    getPendingInvites(),
+  ]);
+  const on = (key: ModuleKey) => !disabledModules.includes(key);
   const today = todayISO();
   const { date: requestedDate } = await searchParams;
   const selectedDate = isISODate(requestedDate) ? requestedDate : today;
@@ -76,7 +89,7 @@ export default async function DashboardPage({
     allMilestones,
     accounts,
     monthIncome,
-    allProjectTasks,
+    allProjectTasksRaw,
     activeHabits,
     allHabitLogs,
     leftoverTasks,
@@ -86,26 +99,11 @@ export default async function DashboardPage({
       .from(tasks)
       .where(and(eq(tasks.userId, userId), gte(tasks.date, week.start), lte(tasks.date, week.end)))
       .orderBy(tasks.date, tasks.sortOrder, tasks.id),
-    db.query.journalEntries.findFirst({
-      where: and(eq(journalEntries.userId, userId), eq(journalEntries.date, today)),
-    }),
-    db.select().from(affirmationCheckins).where(eq(affirmationCheckins.userId, userId)),
-    db
-      .select({ hour: emotionalCheckins.hour, emotion: emotionalCheckins.emotion })
-      .from(emotionalCheckins)
-      .where(and(eq(emotionalCheckins.userId, userId), eq(emotionalCheckins.date, today)))
-      .orderBy(emotionalCheckins.hour),
-    db
-      .select({
-        id: customEmotions.id,
-        name: customEmotions.name,
-        emoji: customEmotions.emoji,
-        category: customEmotions.category,
-      })
-      .from(customEmotions)
-      .where(and(eq(customEmotions.userId, userId), eq(customEmotions.active, true)))
-      .orderBy(customEmotions.sortOrder, customEmotions.id),
-    db.$count(affirmations, and(eq(affirmations.userId, userId), eq(affirmations.active, true))),
+    Promise.resolve(undefined as typeof journalEntries.$inferSelect | undefined),
+    Promise.resolve([] as typeof affirmationCheckins.$inferSelect[]),
+    Promise.resolve([] as typeof emotionalCheckins.$inferSelect[]),
+    Promise.resolve([] as typeof customEmotions.$inferSelect[]),
+    Promise.resolve(0),
     db.select().from(roadmaps).where(eq(roadmaps.userId, userId)).orderBy(roadmaps.sortOrder, roadmaps.id),
     db.select().from(milestones).where(eq(milestones.userId, userId)),
     db.select().from(financeAccounts).where(eq(financeAccounts.userId, userId)),
@@ -158,7 +156,9 @@ export default async function DashboardPage({
       .orderBy(tasks.date, tasks.sortOrder, tasks.id),
   ]);
 
-  const activeHabitsToday = activeHabits.filter((h) => !h.endDate || h.endDate >= today);
+  // Switched-off modules contribute nothing to the dashboard.
+  const allProjectTasks = on("projects") ? allProjectTasksRaw : [];
+  const activeHabitsToday = on("habits") ? activeHabits.filter((h) => !h.endDate || h.endDate >= today) : [];
 
   const selectedTasks = weekTasks.filter((task) => task.date === selectedDate);
   const selectedProjectTasks = allProjectTasks.filter((task) => isActiveOnDate(task, selectedDate));
@@ -206,9 +206,11 @@ export default async function DashboardPage({
       .map((row) => ({ title: row.habit.title, currentStreak: row.stats.currentStreak })),
     plannedCount: selectedTaskCount,
     remainingCount: selectedTaskCount - completedCount,
-    hasAffirmations: activeAffirmationCount > 0,
-    affirmationCheckinsLeft: Object.values(affirmationStats.checkedToday).filter((done) => !done).length,
-    journalWritten: Boolean(todaysJournal?.content),
+    hasAffirmations: on("manifestation") && activeAffirmationCount > 0,
+    affirmationCheckinsLeft: on("manifestation")
+      ? Object.values(affirmationStats.checkedToday).filter((done) => !done).length
+      : 0,
+    journalWritten: !on("journal") || Boolean(todaysJournal?.content),
   });
   const selectedTaskProgress = selectedTaskCount > 0
     ? Math.round((completedCount / selectedTaskCount) * 100)
@@ -218,6 +220,17 @@ export default async function DashboardPage({
     <div className="mx-auto max-w-[1500px]">
       <HomeMotion />
       <NicknameForm nickname={nickname} variant="prompt" />
+      {pendingInvites.length > 0 ? (
+        <Link
+          href="/circles"
+          className="brut-border brut-shadow-sm brut-press mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md bg-yellow px-4 py-3 text-sm font-bold"
+        >
+          <span>
+            🫂 You&rsquo;re invited to join {pendingInvites.length === 1 ? pendingInvites[0].circleName : `${pendingInvites.length} circles`}
+          </span>
+          <span aria-hidden>View &rarr;</span>
+        </Link>
+      ) : null}
       <section className="home-hero home-reveal relative overflow-hidden rounded-[2rem] bg-ink p-5 text-white sm:p-8 sm:pb-28 lg:p-10 lg:pb-28 pb-24">
         <div aria-hidden className="home-orbit home-orbit-one" />
         <div aria-hidden className="home-orbit home-orbit-two" />
@@ -250,13 +263,17 @@ export default async function DashboardPage({
               {formatDateLong(today)}. Everything important is here, ready when you are.
             </p>
             <nav aria-label="Quick actions" className="mt-7 flex flex-wrap gap-2">
-              {[
-                { href: "/pomodoro", icon: "🍅", label: "Focus" },
-                { href: "/projects", icon: "🧩", label: "Projects" },
-                { href: "/manifestation", icon: "◌", label: "Manifestation" },
-                { href: "/finance", icon: "💰", label: "Finance" },
-                { href: "/roadmaps", icon: "🗺️", label: "Roadmaps" },
-              ].map((item) => (
+              {(
+                [
+                  { href: "/pomodoro", icon: "🍅", label: "Focus", module: "pomodoro" },
+                  { href: "/projects", icon: "🧩", label: "Projects", module: "projects" },
+                  { href: "/manifestation", icon: "◌", label: "Manifestation", module: "manifestation" },
+                  { href: "/finance", icon: "💰", label: "Finance", module: "finance" },
+                  { href: "/roadmaps", icon: "🗺️", label: "Roadmaps", module: "roadmaps" },
+                ] as { href: string; icon: string; label: string; module: ModuleKey }[]
+              )
+                .filter((item) => on(item.module))
+                .map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -270,7 +287,7 @@ export default async function DashboardPage({
             </nav>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:gap-3">
+          <div className={`grid grid-cols-1 gap-2 ${STAT_COLS[1 + Number(on("habits")) + Number(on("manifestation"))]} sm:gap-3`}>
             <div data-tilt className="home-stat-card rounded-2xl bg-orange p-3 text-white sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/75">
                 {selectedDate === today ? "Today" : formatDateShort(selectedDate)}
@@ -278,6 +295,7 @@ export default async function DashboardPage({
               <p className="mt-2 font-display text-3xl font-bold sm:text-4xl"><CountUp value={selectedTaskProgress} suffix="%" /></p>
               <p className="mt-1 text-xs font-semibold text-white/80">tasks complete</p>
             </div>
+            {on("habits") ? (
             <div data-tilt className="home-stat-card rounded-2xl bg-green p-3 text-white sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/75">Rhythm</p>
               <p className="mt-2 font-display text-3xl font-bold sm:text-4xl">
@@ -285,11 +303,14 @@ export default async function DashboardPage({
               </p>
               <p className="mt-1 text-xs font-semibold text-white/80">habits today</p>
             </div>
+            ) : null}
+            {on("manifestation") ? (
             <div data-tilt className="home-stat-card rounded-2xl bg-yellow p-3 text-ink sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink/60">Momentum</p>
               <p className="mt-2 font-display text-3xl font-bold sm:text-4xl"><CountUp value={affirmationStats.currentStreak} /></p>
               <p className="mt-1 text-xs font-semibold text-ink/65">day streak</p>
             </div>
+            ) : null}
           </div>
         </div>
         <HomeCat nudges={catNudges} />
@@ -481,6 +502,7 @@ export default async function DashboardPage({
         </Card>
       </div>
 
+      {on("habits") ? (
       <section aria-labelledby="rhythm-heading" className="home-scroll mt-8">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
           <div>
@@ -536,8 +558,12 @@ export default async function DashboardPage({
           </div>
         </Card>
       </section>
+      ) : null}
 
+      {on("manifestation") || on("journal") ? (
       <ManifestationSection
+        showManifestation={on("manifestation")}
+        showJournal={on("journal")}
         date={today}
         journalContent={todaysJournal?.content}
         activeAffirmationCount={activeAffirmationCount}
@@ -546,14 +572,17 @@ export default async function DashboardPage({
         emotionalCheckins={emotionCheckinRows}
         customEmotions={customEmotionRows}
       />
+      ) : null}
 
+      {on("roadmaps") || on("finance") ? (
       <section aria-labelledby="overview-heading" className="home-scroll mt-8">
         <div className="mb-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">The bigger picture</p>
           <h2 id="overview-heading" className="font-display text-3xl font-bold"><span className="home-marker">Around your home</span></h2>
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Card className="home-panel home-lift lg:col-span-2">
+          {on("roadmaps") ? (
+          <Card className={`home-panel home-lift ${on("finance") ? "lg:col-span-2" : "lg:col-span-3"}`}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange">Long view</p>
@@ -593,7 +622,9 @@ export default async function DashboardPage({
               </div>
             )}
           </Card>
+          ) : null}
 
+          {on("finance") ? (
           <div className="brut-border brut-shadow home-panel home-lift overflow-hidden rounded-lg border-t-[8px] border-t-blue bg-surface p-4 text-ink sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -616,8 +647,10 @@ export default async function DashboardPage({
               Open finance <span aria-hidden>↗</span>
             </Link>
           </div>
+          ) : null}
         </div>
       </section>
+      ) : null}
     </div>
   );
 }

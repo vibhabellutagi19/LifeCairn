@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { journalEntries } from "@/db/schema";
-import { requireUserId } from "@/lib/auth";
+import { openManifestation } from "@/lib/manifestationApp";
+
+async function requireUserId(): Promise<string> {
+  openManifestation("/journal");
+}
 
 function entryFor(userId: string, date: string) {
   return and(eq(journalEntries.userId, userId), eq(journalEntries.date, date));

@@ -10,7 +10,7 @@ import {
   isBuiltInEmotionKey,
   type EmotionCategory,
 } from "@/lib/emotions";
-import { requireUserId } from "@/lib/auth";
+import { requireManifestationApp as requireUserId } from "@/lib/manifestationApp";
 
 function isISODate(value: string) {
   return /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value);

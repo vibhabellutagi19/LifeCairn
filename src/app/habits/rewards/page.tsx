@@ -1,5 +1,5 @@
 import { RewardShop, type TrophyEntry } from "@/components/RewardShop";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { loadHabits } from "@/lib/habitData";
 import { periodLabel } from "@/lib/habitRewards";
 import { currentMonthKey, todayISO } from "@/lib/dates";
@@ -7,7 +7,7 @@ import { currentMonthKey, todayISO } from "@/lib/dates";
 export const dynamic = "force-dynamic";
 
 export default async function HabitRewardsPage() {
-  const userId = await requireUserId();
+  const userId = await requireModule("habits");
   const today = todayISO();
   const { habits, claims } = await loadHabits(today, userId);
   const active = habits.filter((h) => h.active && (!h.endDate || h.endDate >= today));

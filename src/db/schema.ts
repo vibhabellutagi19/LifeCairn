@@ -10,7 +10,9 @@ import {
   timestamp,
   pgEnum,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const milestoneStatus = pgEnum("milestone_status", [
   "not_started",
@@ -462,3 +464,129 @@ export const profiles = pgTable("profiles", {
   nickname: varchar("nickname", { length: 30 }).notNull(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// One row per user: app-wide preferences. Modules are stored as the ones
+// switched OFF, so newly added modules default to on.
+export const userSettings = pgTable("user_settings", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
+  disabledModules: text("disabled_modules").array().notNull().default([]),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Circles: small groups that share chosen modules. Unlike every other table,
+// access here goes through circle_members, not a user_id column on the row.
+export const circles = pgTable("circles", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  createdBy: varchar("created_by", { length: 64 }).notNull(), // Clerk user id
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// role: "head" | "co_head" | "member". At most one head and one co-head per
+// circle (partial unique indexes). Removing someone deletes the row only;
+// their own data lives in their own tables and is untouched.
+export const circleMembers = pgTable(
+  "circle_members",
+  {
+    id: serial("id").primaryKey(),
+    circleId: integer("circle_id")
+      .notNull()
+      .references(() => circles.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+    role: varchar("role", { length: 20 }).notNull().default("member"),
+    joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique().on(table.circleId, table.userId),
+    uniqueIndex("circle_one_head").on(table.circleId).where(sql`${table.role} = 'head'`),
+    uniqueIndex("circle_one_co_head").on(table.circleId).where(sql`${table.role} = 'co_head'`),
+  ]
+);
+
+// Which modules this circle shares with its members (module keys from src/lib/modules.ts).
+export const circleModules = pgTable(
+  "circle_modules",
+  {
+    id: serial("id").primaryKey(),
+    circleId: integer("circle_id")
+      .notNull()
+      .references(() => circles.id, { onDelete: "cascade" }),
+    module: varchar("module", { length: 30 }).notNull(),
+  },
+  (table) => [unique().on(table.circleId, table.module)]
+);
+
+// Pending invitations, matched to the invitee by email. Deleted once accepted,
+// declined or revoked.
+export const circleInvites = pgTable(
+  "circle_invites",
+  {
+    id: serial("id").primaryKey(),
+    circleId: integer("circle_id")
+      .notNull()
+      .references(() => circles.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 320 }).notNull(), // lowercased
+    role: varchar("role", { length: 20 }).notNull().default("member"),
+    invitedBy: varchar("invited_by", { length: 64 }).notNull(), // Clerk user id
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.circleId, table.email)]
+);
+
+// A habit shared into a circle by its owner. visibility: "progress" (title,
+// done today, streak) or "full" (also the last 7 days and monthly goal). Rows
+// are deleted when the owner leaves or is removed, so rejoining needs fresh consent.
+export const habitShares = pgTable(
+  "habit_shares",
+  {
+    id: serial("id").primaryKey(),
+    habitId: integer("habit_id")
+      .notNull()
+      .references(() => habits.id, { onDelete: "cascade" }),
+    circleId: integer("circle_id")
+      .notNull()
+      .references(() => circles.id, { onDelete: "cascade" }),
+    ownerId: varchar("owner_id", { length: 64 }).notNull(), // Clerk user id of the habit's owner
+    visibility: varchar("visibility", { length: 20 }).notNull().default("progress"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.habitId, table.circleId)]
+);
+
+// A cheer from a circle member on someone's shared habit, for one day.
+export const habitReactions = pgTable(
+  "habit_reactions",
+  {
+    id: serial("id").primaryKey(),
+    habitId: integer("habit_id")
+      .notNull()
+      .references(() => habits.id, { onDelete: "cascade" }),
+    circleId: integer("circle_id")
+      .notNull()
+      .references(() => circles.id, { onDelete: "cascade" }),
+    fromUserId: varchar("from_user_id", { length: 64 }).notNull(), // Clerk user id
+    date: date("date").notNull(),
+    emoji: varchar("emoji", { length: 8 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.habitId, table.circleId, table.fromUserId, table.date, table.emoji)]
+);
+
+// How much of their own finance a person shows a circle. level: "summary"
+// (total savings and this month's income / spending) or "accounts" (also the
+// account names and balances). Individual entries and notes are never shared.
+// Deleted when the owner leaves or is removed.
+export const financeShares = pgTable(
+  "finance_shares",
+  {
+    id: serial("id").primaryKey(),
+    circleId: integer("circle_id")
+      .notNull()
+      .references(() => circles.id, { onDelete: "cascade" }),
+    ownerId: varchar("owner_id", { length: 64 }).notNull(), // Clerk user id
+    level: varchar("level", { length: 20 }).notNull().default("summary"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.circleId, table.ownerId)]
+);

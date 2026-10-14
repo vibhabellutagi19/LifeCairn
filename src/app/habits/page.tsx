@@ -7,7 +7,7 @@ import { HabitCalendarGrid } from "@/components/HabitCalendarGrid";
 import { Collapsible } from "@/components/Collapsible";
 import { HabitsShell } from "@/components/HabitsShell";
 import { HabitTodayView } from "@/components/HabitTodayView";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { loadHabits } from "@/lib/habitData";
 import { goalProgress } from "@/lib/habitGoals";
 import { habitIcon } from "@/lib/habitLook";
@@ -25,7 +25,7 @@ export default async function HabitsPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("habits");
   const { month: monthParam } = await searchParams;
   const today = todayISO();
   const thisMonth = currentMonthKey();

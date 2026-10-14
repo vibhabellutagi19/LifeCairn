@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { hooponoponoRounds } from "@/db/schema";
-import { requireUserId } from "@/lib/auth";
+import { requireManifestationApp as requireUserId } from "@/lib/manifestationApp";
 
 function revalidate() {
   revalidatePath("/hooponopono");

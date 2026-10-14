@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env*
+deploy/*.env
+*.pem
+*.key
+*.dump
+*.sql
+*.tsbuildinfo
+.aws
+.codex
+.agents
+.cc*

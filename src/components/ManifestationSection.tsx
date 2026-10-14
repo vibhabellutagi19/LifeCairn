@@ -6,6 +6,8 @@ import type { AffirmationSlot } from "@/lib/actions/affirmations";
 import { customEmotionKey, EMOTIONS, formatHour } from "@/lib/emotions";
 
 export function ManifestationSection({
+  showManifestation = true,
+  showJournal = true,
   date,
   journalContent,
   activeAffirmationCount,
@@ -14,6 +16,10 @@ export function ManifestationSection({
   emotionalCheckins,
   customEmotions,
 }: {
+  /** Emotional weather and affirmations. */
+  showManifestation?: boolean;
+  /** The journal card. */
+  showJournal?: boolean;
   date: string;
   journalContent?: string | null;
   activeAffirmationCount: number;
@@ -43,14 +49,17 @@ export function ManifestationSection({
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-pink">Mind · feeling · intention</p>
-          <h2 id="manifestation-heading" className="font-display text-3xl font-bold sm:text-4xl"><span className="home-marker">Manifestation</span></h2>
+          <h2 id="manifestation-heading" className="font-display text-3xl font-bold sm:text-4xl"><span className="home-marker">{showManifestation ? "Manifestation" : "Journal"}</span></h2>
           <p className="mt-1 max-w-2xl text-sm font-semibold leading-relaxed text-muted">
             Notice what you feel, choose what you reinforce, and leave yourself something honest.
           </p>
         </div>
-        <Badge color="pink">{emotionalCheckins.length} emotional {emotionalCheckins.length === 1 ? "check-in" : "check-ins"}</Badge>
+        {showManifestation ? (
+          <Badge color="pink">{emotionalCheckins.length} emotional {emotionalCheckins.length === 1 ? "check-in" : "check-ins"}</Badge>
+        ) : null}
       </div>
 
+      {showManifestation ? (
       <Card className="home-panel border-t-[8px] border-t-pink">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -80,8 +89,10 @@ export function ManifestationSection({
           Open emotional weather <span aria-hidden>&rarr;</span>
         </Link>
       </Card>
+      ) : null}
 
-      <div className="mt-6 grid items-stretch gap-6 lg:grid-cols-2">
+      <div className={`${showManifestation ? "mt-6" : ""} grid items-stretch gap-6 ${showManifestation && showJournal ? "lg:grid-cols-2" : ""}`}>
+        {showJournal ? (
         <Card className="home-panel home-lift flex h-full flex-col border-t-[8px] border-t-blue">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
@@ -108,7 +119,9 @@ export function ManifestationSection({
             {journalContent ? "Continue journaling" : "Open today’s journal"}
           </Link>
         </Card>
+        ) : null}
 
+        {showManifestation ? (
         <Card className="home-panel home-lift flex h-full flex-col border-t-[8px] border-t-yellow">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
@@ -138,6 +151,7 @@ export function ManifestationSection({
             {activeAffirmationCount > 0 ? "Open affirmation practice" : "Create an affirmation"} <span aria-hidden>&rarr;</span>
           </Link>
         </Card>
+        ) : null}
       </div>
     </section>
   );

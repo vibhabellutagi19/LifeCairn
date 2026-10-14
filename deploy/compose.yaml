@@ -1,0 +1,51 @@
+name: lifecairn
+services:
+  app:
+    build:
+      context: ..
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set Clerk publishable key}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://lifecairn:${POSTGRES_PASSWORD:?Set a URL-safe database password}@db:5432/lifecairn
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?Set Clerk secret key}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lifecairn
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lifecairn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifecairn -d lifecairn"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set the public domain}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

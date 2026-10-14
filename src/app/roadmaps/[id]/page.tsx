@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { milestones, roadmaps } from "@/db/schema";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, ProgressBar, Textarea } from "@/components/ui";
 import { createMilestone, deleteRoadmap } from "@/lib/actions/roadmaps";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { MilestoneRow } from "@/components/MilestoneRow";
 import { DeleteRoadmapButton } from "@/components/DeleteRoadmapButton";
 
@@ -16,7 +16,7 @@ export default async function RoadmapDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("roadmaps");
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();

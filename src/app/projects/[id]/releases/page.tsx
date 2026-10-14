@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projects, releases } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader, Textarea } from "@/components/ui";
-import { requireUserId } from "@/lib/auth";
+import { requireModule } from "@/lib/moduleSettings";
 import { createRelease } from "@/lib/actions/projects";
 import { ReleaseRow } from "@/components/ReleaseRow";
 
@@ -15,7 +15,7 @@ export default async function ProjectReleasesPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const userId = await requireUserId();
+  const userId = await requireModule("projects");
   const { id: idParam } = await params;
   const id = Number(idParam);
   if (Number.isNaN(id)) notFound();
