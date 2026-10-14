@@ -1,10 +1,7 @@
 name: lifecairn
 services:
   app:
-    build:
-      context: ..
-      args:
-        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set Clerk publishable key}
+    image: ${APP_IMAGE:?Set the ECR app image URI and release tag}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://lifecairn:${POSTGRES_PASSWORD:?Set a URL-safe database password}@db:5432/lifecairn
@@ -35,14 +32,9 @@ services:
       retries: 20
   tools:
     profiles: ["tools"]
-    build:
-      context: ..
-      target: dependencies
+    image: ${TOOLS_IMAGE:?Set the ECR tools image URI and matching release tag}
     environment:
       DATABASE_URL: postgresql://lifecairn:${POSTGRES_PASSWORD}@db:5432/lifecairn
-    volumes:
-      - ../src:/app/src:ro
-      - ../drizzle.config.ts:/app/drizzle.config.ts:ro
     depends_on:
       db:
         condition: service_healthy

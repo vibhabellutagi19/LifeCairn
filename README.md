@@ -43,9 +43,9 @@ Stop Postgres when you're done: `npm run docker:down` (your data persists in a D
 - `npm run db:studio` — opens Drizzle Studio, a GUI for browsing/editing the database directly.
 - `npm run db:push` — re-syncs the database schema after you edit `src/db/schema.ts`.
 
-## Hosting it later
+## Deploying to EC2
 
-The app is a standard Next.js + Postgres app, so it deploys cleanly to Railway (provision a Postgres instance there, set `DATABASE_URL`, deploy this repo). No code changes needed — just re-point the env var. Since there's no login yet, add authentication (or at minimum a password gate) before putting it anywhere public.
+Follow [the ECR and SSM deployment guide](deploy/EC2-SSM.md). Run [deploy/push-ecr.sh](deploy/push-ecr.sh) on your computer to build and push the app and database tools images. EC2 pulls those images and runs them with PostgreSQL and Caddy. Configure Clerk authentication using the guide before public access.
 
 ## Notes
 
