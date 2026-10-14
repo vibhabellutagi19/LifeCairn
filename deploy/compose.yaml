@@ -17,6 +17,8 @@ services:
         condition: service_healthy
     expose:
       - "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -31,6 +33,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+  tools:
+    profiles: ["tools"]
+    build:
+      context: ..
+      target: dependencies
+    environment:
+      DATABASE_URL: postgresql://lifecairn:${POSTGRES_PASSWORD}@db:5432/lifecairn
+    volumes:
+      - ../src:/app/src:ro
+      - ../drizzle.config.ts:/app/drizzle.config.ts:ro
+    depends_on:
+      db:
+        condition: service_healthy
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped
