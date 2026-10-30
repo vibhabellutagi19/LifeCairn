@@ -9,6 +9,7 @@ services:
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
       NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+      MANIFESTATION_APP_URL: https://${MANIFESTATION_SITE_ADDRESS:?Set the Manifestation domain}
     depends_on:
       db:
         condition: service_healthy
@@ -16,6 +17,24 @@ services:
       - "3000"
     ports:
       - "127.0.0.1:3000:3000"
+  # Standalone Manifestation app (separate repo), sharing Postgres via its own
+  # "manifestation" database and the same Clerk instance as LifeCairn.
+  manifestation:
+    image: ${MANIFESTATION_IMAGE:?Set the ECR Manifestation image URI and release tag}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://lifecairn:${POSTGRES_PASSWORD}@db:5432/manifestation
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+      ALLOWED_USER_IDS: ${MANIFESTATION_ALLOWED_USER_IDS:?Set the Clerk user ids allowed into Manifestation}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    ports:
+      - "127.0.0.1:3001:3000"
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -38,11 +57,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  manifestation-tools:
+    profiles: ["tools"]
+    image: ${MANIFESTATION_TOOLS_IMAGE:?Set the ECR Manifestation tools image URI}
+    environment:
+      DATABASE_URL: postgresql://lifecairn:${POSTGRES_PASSWORD}@db:5432/manifestation
+    depends_on:
+      db:
+        condition: service_healthy
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:?Set the public domain}
+      MANIFESTATION_SITE_ADDRESS: ${MANIFESTATION_SITE_ADDRESS}
     ports:
       - "80:80"
       - "443:443"
@@ -52,6 +80,7 @@ services:
       - caddy_config:/config
     depends_on:
       - app
+      - manifestation
 volumes:
   pgdata:
   caddy_data:

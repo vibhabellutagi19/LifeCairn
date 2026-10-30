@@ -236,6 +236,55 @@ sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-
 
 Rollback: set the previous `APP_IMAGE` and `TOOLS_IMAGE` and recreate the app. This does not undo database changes.
 
+## 12. Manifestation on the same instance
+
+The standalone Manifestation app (`../manifestation`) runs next to LifeCairn: its own container and subdomain, its own `manifestation` database on the same PostgreSQL, and the same Clerk instance. It keeps all data under one profile, so only the Clerk user ids in `MANIFESTATION_ALLOWED_USER_IDS` get in; everyone else gets a 403.
+
+One-time setup:
+
+1. DNS: add an **A record** for the Manifestation subdomain (for example `manifestation.example.com`) pointing at the instance's public IP. Use a subdomain of the same root domain as LifeCairn so the production Clerk instance accepts it.
+2. Find your production Clerk user id (`user_...`) in the Clerk dashboard under **Users**.
+3. On your computer, build and push its images (repository `manifestation` is created if missing):
+
+   ```bash
+   cd ../manifestation
+   export AWS_REGION=YOUR_REGION
+   export NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...   # same key as LifeCairn production
+   bash deploy/push-ecr.sh
+   ```
+
+4. On EC2, add `MANIFESTATION_IMAGE`, `MANIFESTATION_TOOLS_IMAGE`, `MANIFESTATION_SITE_ADDRESS` and `MANIFESTATION_ALLOWED_USER_IDS` to `deploy/ec2.env` (see `ec2.env.example`), then create the database and its schema:
+
+   ```bash
+   cd ~/lifecairn && git pull --ff-only
+   sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml exec -T db \
+     psql -U lifecairn -d lifecairn -c "CREATE DATABASE manifestation OWNER lifecairn;"
+   sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools pull manifestation manifestation-tools
+   sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm manifestation-tools
+   ```
+
+   To bring local data instead of starting empty, skip the `manifestation-tools` run and restore a dump (see below).
+
+5. Start it and reload Caddy so it serves the new subdomain, and recreate LifeCairn so its redirects use `MANIFESTATION_APP_URL`:
+
+   ```bash
+   sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build manifestation app
+   sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --force-recreate proxy
+   ```
+
+Copy local data (optional, before first use):
+
+```bash
+# on your computer (local Postgres from LifeCairn's docker-compose.yml)
+docker compose exec -T db pg_dump -U roadmap --no-owner --no-privileges manifestation > manifestation.sql
+scp -i /path/to/key.pem manifestation.sql ubuntu@YOUR_EC2_HOST:~/
+# on EC2, into the empty database created above
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml exec -T db \
+  psql -U lifecairn -d manifestation < ~/manifestation.sql
+```
+
+Updates: rebuild with `deploy/push-ecr.sh` in the Manifestation repo, set the new `MANIFESTATION_IMAGE` / `MANIFESTATION_TOOLS_IMAGE`, pull, run `manifestation-tools` if its schema changed, then `up -d --no-build manifestation`.
+
 ## Backups and data safety
 
 PostgreSQL data lives in a Docker volume on this instance, which is not an off-instance backup. Back up regularly:
