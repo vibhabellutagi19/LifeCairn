@@ -51,12 +51,6 @@ export const projectTaskStatus = pgEnum("project_task_status", [
 
 export const taskPriority = pgEnum("task_priority", ["low", "medium", "high"]);
 
-export const emotionCategory = pgEnum("emotion_category", [
-  "positive",
-  "negative",
-  "missing",
-]);
-
 // A roadmap is a generic goal track (Career, Money, Health, Relationship, or
 // anything else the user adds). Each roadmap owns a list of milestones.
 export const roadmaps = pgTable("roadmaps", {
@@ -100,117 +94,6 @@ export const tasks = pgTable("tasks", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
-
-// Affirmations library, grouped by free-text category and an optional
-// subcategory (e.g. Money -> Maintenance / Goal / Action / Extra abundance).
-export const affirmations = pgTable("affirmations", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-  text: text("text").notNull(),
-  category: varchar("category", { length: 100 }).notNull().default("General"),
-  subcategory: varchar("subcategory", { length: 100 }),
-  active: boolean("active").notNull().default(true),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-// A permanent celebration record. Text and classification are copied so the
-// history survives later edits or deletion of the original affirmation.
-export const affirmationManifestations = pgTable(
-  "affirmation_manifestations",
-  {
-    id: serial("id").primaryKey(),
-    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-    affirmationId: integer("affirmation_id").references(() => affirmations.id, {
-      onDelete: "set null",
-    }),
-    affirmationText: text("affirmation_text").notNull(),
-    category: varchar("category", { length: 100 }).notNull(),
-    subcategory: varchar("subcategory", { length: 100 }),
-    manifestedOn: date("manifested_on").notNull(),
-    reflection: text("reflection"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => [unique().on(table.affirmationId)]
-);
-
-export const affirmationSlot = pgEnum("affirmation_slot", [
-  "morning",
-  "afternoon",
-  "evening",
-]);
-
-// One row per session (morning/afternoon/evening) a day the affirmation
-// practice happened. A day counts as fully done once all three are logged.
-export const affirmationCheckins = pgTable(
-  "affirmation_checkins",
-  {
-    id: serial("id").primaryKey(),
-    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-    date: date("date").notNull(),
-    slot: affirmationSlot("slot").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => [unique().on(table.userId, table.date, table.slot)]
-);
-
-// One journal entry per day.
-export const journalEntries = pgTable(
-  "journal_entries",
-  {
-    id: serial("id").primaryKey(),
-    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-    date: date("date").notNull(),
-    content: text("content").notNull().default(""),
-    gratitude: text("gratitude"),
-    mood: varchar("mood", { length: 20 }),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (table) => [unique().on(table.userId, table.date)]
-);
-
-// One quick emotional check-in per hour. Keeping this separate from the
-// journal's daily mood preserves the way feelings change throughout a day.
-export const emotionalCheckins = pgTable(
-  "emotional_checkins",
-  {
-    id: serial("id").primaryKey(),
-    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-    date: date("date").notNull(),
-    hour: integer("hour").notNull(),
-    emotion: varchar("emotion", { length: 30 }).notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (table) => [unique().on(table.userId, table.date, table.hour)]
-);
-
-// A reusable daily window controls which hourly check-ins make up the day.
-// One row per user.
-export const emotionalTrackingSettings = pgTable("emotional_tracking_settings", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
-  startHour: integer("start_hour").notNull().default(7),
-  endHour: integer("end_hour").notNull().default(22),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-// Personal additions to the built-in emotion palette.
-export const customEmotions = pgTable(
-  "custom_emotions",
-  {
-    id: serial("id").primaryKey(),
-    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-    name: varchar("name", { length: 60 }).notNull(),
-    emoji: varchar("emoji", { length: 20 }).notNull().default("◌"),
-    category: emotionCategory("category").notNull(),
-    active: boolean("active").notNull().default(true),
-    sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => [unique().on(table.userId, table.name)]
-);
 
 // Point-in-time savings (FD, mutual fund, emergency fund, etc.) with running balance.
 export const financeAccounts = pgTable("finance_accounts", {
@@ -408,20 +291,6 @@ export const pomodoroSettings = pgTable("pomodoro_settings", {
   shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
   longBreakMinutes: integer("long_break_minutes").notNull().default(15),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-// One finished ho'oponopono session: how many times the four phrases were
-// said, the goal set (null = open-ended / conversational), an optional
-// intention (who or what it was for) and an optional reflection afterwards.
-export const hooponoponoRounds = pgTable("hooponopono_rounds", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
-  date: date("date").notNull(),
-  repetitions: integer("repetitions").notNull().default(108),
-  target: integer("target"),
-  intention: varchar("intention", { length: 200 }),
-  note: text("note"),
-  completedAt: timestamp("completed_at").notNull().defaultNow(),
 });
 
 export const habitRewardKind = pgEnum("habit_reward_kind", ["monthly_goal", "streak"]);
