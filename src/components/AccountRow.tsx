@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Badge, Button, Input } from "@/components/ui";
-import { deleteSaving, updateSavingBalance } from "@/lib/actions/finance";
-import { formatEUR, formatINR } from "@/lib/format";
+import { Button, Input, Select } from "@/components/ui";
+import { deleteSaving, updateSaving } from "@/lib/actions/finance";
 
 const TYPE_LABEL: Record<string, string> = {
   fd: "Fixed Deposit",
@@ -14,7 +13,9 @@ const TYPE_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-export function SavingRow({
+// Rename / retype / delete a saving from inside the snapshot form. Uses buttons
+// rather than a nested <form>; balances are edited through the snapshot itself.
+export function SavingAccountControls({
   id,
   name,
   type,
@@ -25,80 +26,84 @@ export function SavingRow({
   type: string;
   balance: string;
 }) {
-  const [value, setValue] = useState(balance);
   const [isEditing, setIsEditing] = useState(false);
+  const [nameValue, setNameValue] = useState(name);
+  const [typeValue, setTypeValue] = useState(type);
   const [isPending, startTransition] = useTransition();
-  const dirty = value !== balance;
-  const isEuroSaving = /\bEUR\b/i.test(name);
+  const dirty = nameValue.trim() !== name || typeValue !== type;
 
-  return (
-    <div className="brut-border rounded-md bg-surface p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold" title={name}>{name}</p>
-          <Badge color="muted">{TYPE_LABEL[type] ?? type}</Badge>
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <div className="text-right">
-            <p className="font-display text-lg font-bold">
-              {isEuroSaving ? formatEUR(balance) : formatINR(balance)}
-            </p>
-            <button
-              type="button"
-              className="inline-flex min-h-11 min-w-11 items-center justify-end px-1 text-xs font-bold uppercase tracking-wide text-blue hover:underline sm:min-h-0 sm:min-w-0 sm:px-0"
-              onClick={() => {
-                setValue(balance);
-                setIsEditing((current) => !current);
-              }}
-            >
-              {isEditing ? "Close" : "Edit"}
-            </button>
-          </div>
-          <button
-            type="button"
-            aria-label={`Delete ${name}`}
-            disabled={isPending}
-            className="flex h-11 w-11 items-center justify-center text-muted hover:text-pink disabled:opacity-50 sm:h-9 sm:w-9"
-            onClick={() =>
-              startTransition(() => {
-                deleteSaving(id);
-              })
-            }
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-
-      {isEditing ? (
-        <form
-          className="mt-3 flex items-center gap-2 border-t-2 border-ink/10 pt-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            startTransition(async () => {
-              await updateSavingBalance(id, value);
-              setIsEditing(false);
+  if (!isEditing) {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <p className="truncate font-bold" title={name}>{name}</p>
+        <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-bold uppercase text-muted">
+          {TYPE_LABEL[type] ?? type}
+        </span>
+        <button
+          type="button"
+          className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-blue hover:underline"
+          onClick={() => {
+            setNameValue(name);
+            setTypeValue(type);
+            setIsEditing(true);
+          }}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          aria-label={`Delete ${name}`}
+          disabled={isPending}
+          className="shrink-0 text-muted hover:text-pink disabled:opacity-50"
+          onClick={() => {
+            if (!confirm(`Delete "${name}"? Past snapshots keep their values.`)) return;
+            startTransition(() => {
+              deleteSaving(id);
             });
           }}
         >
-          <span className="text-sm font-bold text-muted">{isEuroSaving ? "€" : "₹"}</span>
-          <Input
-            aria-label={`Current value for ${name}`}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            inputMode="decimal"
-            className="min-w-0 flex-1"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            variant="green"
-            disabled={isPending || !dirty}
-          >
-            {isPending ? "Saving..." : "Save"}
-          </Button>
-        </form>
-      ) : null}
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        aria-label="Saving name"
+        value={nameValue}
+        onChange={(event) => setNameValue(event.target.value)}
+        className="min-w-0 flex-1"
+      />
+      <Select aria-label="Saving type" value={typeValue} onChange={(event) => setTypeValue(event.target.value)}>
+        {Object.entries(TYPE_LABEL).map(([key, text]) => (
+          <option key={key} value={key}>
+            {text}
+          </option>
+        ))}
+      </Select>
+      <Button
+        type="button"
+        size="sm"
+        variant="green"
+        disabled={isPending || !dirty || !nameValue.trim()}
+        onClick={() => {
+          const formData = new FormData();
+          formData.set("name", nameValue);
+          formData.set("type", typeValue);
+          formData.set("balance", balance);
+          startTransition(async () => {
+            await updateSaving(id, formData);
+            setIsEditing(false);
+          });
+        }}
+      >
+        {isPending ? "Saving..." : "Save"}
+      </Button>
+      <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setIsEditing(false)}>
+        Cancel
+      </Button>
     </div>
   );
 }

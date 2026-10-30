@@ -10,7 +10,7 @@ import {
   financeSnapshots,
   financeTargets,
 } from "@/db/schema";
-import { isExpenseCategory } from "@/lib/financeCategories";
+import { isExpenseCategory, parseTags } from "@/lib/financeCategories";
 import { requireUserId } from "@/lib/auth";
 
 function revalidateAll() {
@@ -44,13 +44,17 @@ export async function createSaving(formData: FormData) {
   revalidateAll();
 }
 
-export async function updateSavingBalance(id: number, balanceRaw: string) {
+export async function updateSaving(id: number, formData: FormData) {
   const userId = await requireUserId();
-  const parsedBalance = Number(balanceRaw.replaceAll(",", "").trim());
-  if (!Number.isFinite(parsedBalance) || parsedBalance < 0) return;
+  const name = String(formData.get("name") || "").trim();
+  if (!name) return;
+  const typeRaw = String(formData.get("type") || "other");
+  if (!isSavingType(typeRaw)) return;
+  const balance = Number(String(formData.get("balance") || "").replaceAll(",", "").trim());
+  if (!Number.isFinite(balance) || balance < 0) return;
   await db
     .update(financeAccounts)
-    .set({ balance: parsedBalance.toFixed(2), updatedAt: new Date() })
+    .set({ name, type: typeRaw, balance: balance.toFixed(2), updatedAt: new Date() })
     .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
   revalidateAll();
 }
@@ -165,6 +169,7 @@ export async function createFinanceEntry(formData: FormData) {
   const categoryRaw = String(formData.get("category") || "Other");
   const category = type === "expense" && isExpenseCategory(categoryRaw) ? categoryRaw : "Other";
   const notes = String(formData.get("notes") || "").trim();
+  const tags = type === "expense" ? parseTags(String(formData.get("tags") || "")) : [];
 
   await db.insert(financeEntries).values({
     userId,
@@ -174,7 +179,78 @@ export async function createFinanceEntry(formData: FormData) {
     date,
     category,
     notes: notes || null,
+    tags,
   });
+  revalidateAll();
+}
+
+export type BulkExpenseRow = {
+  date: string;
+  source: string;
+  amount: string;
+  category: string;
+  tags: string;
+  notes: string;
+};
+
+// Inserts every valid row in one statement; returns how many were saved.
+export async function createFinanceEntries(rows: BulkExpenseRow[]) {
+  const userId = await requireUserId();
+  const values = rows.slice(0, 200).flatMap((row) => {
+    const source = String(row.source || "").trim();
+    const amount = Number(String(row.amount || "").replaceAll(",", "").trim());
+    const date = String(row.date || "");
+    if (!source || !Number.isFinite(amount) || amount <= 0) return [];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+    const categoryRaw = String(row.category || "Other");
+    const notes = String(row.notes || "").trim();
+    return [
+      {
+        userId,
+        source: source.slice(0, 200),
+        amount: amount.toFixed(2),
+        type: "expense" as const,
+        date,
+        category: isExpenseCategory(categoryRaw) ? categoryRaw : "Other",
+        notes: notes || null,
+        tags: parseTags(String(row.tags || "")),
+      },
+    ];
+  });
+  if (values.length === 0) return 0;
+  await db.insert(financeEntries).values(values);
+  revalidateAll();
+  return values.length;
+}
+
+export async function updateFinanceEntry(id: number, formData: FormData) {
+  const userId = await requireUserId();
+  const source = String(formData.get("source") || "").trim();
+  const amount = Number(String(formData.get("amount") || "").replaceAll(",", "").trim());
+  if (!source || !Number.isFinite(amount) || amount <= 0) return;
+  const date = String(formData.get("date") || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  const notes = String(formData.get("notes") || "").trim();
+
+  const existing = await db.query.financeEntries.findFirst({
+    where: and(eq(financeEntries.id, id), eq(financeEntries.userId, userId)),
+  });
+  if (!existing) return;
+  const categoryRaw = String(formData.get("category") || "Other");
+  const category =
+    existing.type === "expense" && isExpenseCategory(categoryRaw) ? categoryRaw : "Other";
+
+  await db
+    .update(financeEntries)
+    .set({
+      source,
+      amount: amount.toFixed(2),
+      date,
+      category,
+      notes: notes || null,
+      tags: existing.type === "expense" ? parseTags(String(formData.get("tags") || "")) : [],
+    })
+    .where(and(eq(financeEntries.id, id), eq(financeEntries.userId, userId)));
   revalidateAll();
 }
 

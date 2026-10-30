@@ -10,7 +10,9 @@ import {
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
 import { requireModule } from "@/lib/moduleSettings";
-import { SavingRow } from "@/components/AccountRow";
+import { SavingAccountControls } from "@/components/AccountRow";
+import { BulkExpenseModal } from "@/components/BulkExpenseModal";
+import { ExpenseBreakdown, SpendingByTag, type TagSummary } from "@/components/ExpenseInsights";
 import { FinanceEntryModal } from "@/components/FinanceEntryModal";
 import { FinanceEntryRow } from "@/components/FinanceEntryRow";
 import { NewSavingModal } from "@/components/NewSavingModal";
@@ -106,6 +108,29 @@ export default async function FinancePage({
   }))
     .filter(({ total }) => total > 0)
     .sort((a, b) => b.total - a.total);
+  const taggedExpenses = await db
+    .select({
+      tag: sql<string>`unnest(${financeEntries.tags})`,
+      category: financeEntries.category,
+      amount: financeEntries.amount,
+    })
+    .from(financeEntries)
+    .where(and(eq(financeEntries.userId, userId), eq(financeEntries.type, "expense")));
+  const tagTotals = new Map<string, { count: number; byCategory: Map<string, number> }>();
+  for (const row of taggedExpenses) {
+    const entry = tagTotals.get(row.tag) ?? { count: 0, byCategory: new Map() };
+    entry.count += 1;
+    entry.byCategory.set(row.category, (entry.byCategory.get(row.category) ?? 0) + Number(row.amount));
+    tagTotals.set(row.tag, entry);
+  }
+  const tagSummaries: TagSummary[] = [...tagTotals.entries()]
+    .map(([tag, { count, byCategory }]) => {
+      const items = [...byCategory.entries()]
+        .map(([category, total]) => ({ category, total }))
+        .sort((a, b) => b.total - a.total);
+      return { tag, count, items, total: items.reduce((sum, item) => sum + item.total, 0) };
+    })
+    .sort((a, b) => b.total - a.total);
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === selectedMonth);
   const selectedRows = allSnapshotRows.filter((row) => row.month === selectedMonth);
   const selectedByAccount = new Map(selectedRows.map((row) => [row.accountId, row]));
@@ -142,6 +167,7 @@ export default async function FinancePage({
           <div className="flex flex-wrap gap-2">
             <FinanceEntryModal type="income" defaultDate={defaultEntryDate} />
             <FinanceEntryModal type="expense" defaultDate={defaultEntryDate} />
+            <BulkExpenseModal defaultDate={defaultEntryDate} />
           </div>
         }
       />
@@ -207,37 +233,13 @@ export default async function FinancePage({
         </Card>
       </div>
 
-      <Card className="mb-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl font-bold">Expense breakdown</h2>
-            <p className="text-sm font-semibold text-muted">Where your money went this month</p>
-          </div>
-          <span className="rounded-md bg-pink px-3 py-1.5 text-sm font-bold text-white">
-            {formatEUR(expense)}
-          </span>
-        </div>
-        {expenseByCategory.length === 0 ? (
-          <EmptyState>No expenses recorded for {formatMonthLabel(selectedMonth)}.</EmptyState>
-        ) : (
-          <div className="space-y-3">
-            {expenseByCategory.map(({ category, total }) => (
-              <div key={category}>
-                <div className="mb-1 flex items-center justify-between gap-3 text-sm font-bold">
-                  <span>{category}</span>
-                  <span>{formatEUR(total)}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-background">
-                  <div
-                    className="h-full rounded-full bg-pink"
-                    style={{ width: `${expense > 0 ? Math.max(4, (total / expense) * 100) : 0}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      <ExpenseBreakdown
+        monthLabel={formatMonthLabel(selectedMonth)}
+        total={expense}
+        items={expenseByCategory}
+      />
+
+      <SpendingByTag tags={tagSummaries} />
 
       <Card className="mb-6">
         <div className="mb-4">
@@ -285,6 +287,7 @@ export default async function FinancePage({
                     type={entry.type}
                     source={entry.source}
                     category={entry.category}
+                    tags={entry.tags}
                     amount={entry.amount}
                     notes={entry.notes}
                   />
@@ -292,40 +295,6 @@ export default async function FinancePage({
               )}
             </div>
           </section>
-        </div>
-      </Card>
-
-      <Card className="mb-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl font-bold">Savings</h2>
-            <p className="text-sm font-semibold text-muted">
-              Your investments, deposits, bank balances, and emergency funds.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
-              {portfolioSavings.length} {portfolioSavings.length === 1 ? "saving" : "savings"}
-            </span>
-            <NewSavingModal />
-          </div>
-        </div>
-        <div className="grid max-h-[340px] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
-          {portfolioSavings.length === 0 ? (
-            <div className="md:col-span-2 xl:col-span-3">
-              <EmptyState>No savings added yet.</EmptyState>
-            </div>
-          ) : (
-            portfolioSavings.map((saving) => (
-              <SavingRow
-                key={saving.id}
-                id={saving.id}
-                name={saving.name}
-                type={saving.type}
-                balance={saving.balance}
-              />
-            ))
-          )}
         </div>
       </Card>
 
@@ -337,9 +306,12 @@ export default async function FinancePage({
               Savings values and cash flow captured together for {formatMonthLabel(selectedMonth)}.
             </p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${selectedSnapshot ? "bg-green text-white" : "bg-yellow text-ink"}`}>
-            {selectedSnapshot ? `Saved ${selectedSnapshot.snapshotDate}` : "Not saved yet"}
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${selectedSnapshot ? "bg-green text-white" : "bg-yellow text-ink"}`}>
+              {selectedSnapshot ? `Saved ${selectedSnapshot.snapshotDate}` : "Not saved yet"}
+            </span>
+            <NewSavingModal />
+          </div>
         </div>
 
         {snapshots.length > 0 ? (
@@ -413,7 +385,7 @@ export default async function FinancePage({
             </div>
 
             {accounts.length === 0 ? (
-              <EmptyState>Add a saving before creating a monthly snapshot.</EmptyState>
+              <EmptyState>Add a saving with the button above before creating a monthly snapshot.</EmptyState>
             ) : (
               <div className="space-y-2">
                 <div className="hidden grid-cols-[minmax(0,1fr)_minmax(120px,180px)_minmax(120px,180px)] gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-muted sm:grid">
@@ -432,8 +404,13 @@ export default async function FinancePage({
                       key={saving.id}
                       className="brut-border grid grid-cols-1 gap-2 rounded-md bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_minmax(120px,180px)_minmax(120px,180px)] sm:items-center sm:gap-3"
                     >
-                      <div>
-                        <p className="font-bold">{saving.name}</p>
+                      <div className="min-w-0">
+                        <SavingAccountControls
+                          id={saving.id}
+                          name={saving.name}
+                          type={saving.type}
+                          balance={saving.balance}
+                        />
                         <p className="text-xs font-semibold uppercase text-muted">{currency}</p>
                       </div>
                       <label>

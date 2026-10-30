@@ -272,6 +272,8 @@ export const financeEntries = pgTable("finance_entries", {
   category: varchar("category", { length: 100 }).notNull().default("Other"),
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   notes: text("notes"),
+  // Free-form labels (e.g. a trip name) to total spending across months/categories.
+  tags: text("tags").array().notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

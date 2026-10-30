@@ -124,6 +124,14 @@ export function FinanceEntryModal({
                 </Select>
               </div>
             ) : null}
+            {isExpense ? (
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wide">
+                  Tags <span className="normal-case text-muted">(optional, comma separated)</span>
+                </label>
+                <Input name="tags"  placeholder="e.g. goa-trip, work" />
+              </div>
+            ) : null}
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide" htmlFor={`${titleId}-notes`}>
                 Notes <span className="normal-case text-muted">(optional)</span>
