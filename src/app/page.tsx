@@ -2,14 +2,10 @@ import Link from "next/link";
 import { and, eq, gte, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  affirmationCheckins,
-  customEmotions,
-  emotionalCheckins,
   financeAccounts,
   financeEntries,
   habitLogs,
   habits,
-  journalEntries,
   milestones,
   projectTasks,
   projects,
@@ -19,7 +15,6 @@ import {
 import { requireUserId } from "@/lib/auth";
 import { Badge, Button, Card, EmptyState, Input, ProgressBar } from "@/components/ui";
 import { TaskRow } from "@/components/TaskRow";
-import { ManifestationSection } from "@/components/ManifestationSection";
 import { ProjectTaskRow } from "@/components/ProjectTaskRow";
 import { HabitQuickRow } from "@/components/HabitQuickRow";
 import { createTask } from "@/lib/actions/tasks";
@@ -34,7 +29,6 @@ import { getPendingInvites } from "@/lib/circleAccess";
 import type { ModuleKey } from "@/lib/modules";
 import { isActiveOnDate, rankFocusTasks } from "@/lib/focusNext";
 import { computeHabitStats } from "@/lib/habitStats";
-import { computeAffirmationStats } from "@/lib/affirmationStats";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
 import { formatDateLong, formatDateShort, formatEUR, formatINR } from "@/lib/format";
 import { isOpenTask } from "@/lib/taskStatus";
@@ -80,11 +74,6 @@ export default async function DashboardPage({
 
   const [
     weekTasks,
-    todaysJournal,
-    affirmationCheckinRows,
-    emotionCheckinRows,
-    customEmotionRows,
-    activeAffirmationCount,
     allRoadmaps,
     allMilestones,
     accounts,
@@ -99,11 +88,6 @@ export default async function DashboardPage({
       .from(tasks)
       .where(and(eq(tasks.userId, userId), gte(tasks.date, week.start), lte(tasks.date, week.end)))
       .orderBy(tasks.date, tasks.sortOrder, tasks.id),
-    Promise.resolve(undefined as typeof journalEntries.$inferSelect | undefined),
-    Promise.resolve([] as typeof affirmationCheckins.$inferSelect[]),
-    Promise.resolve([] as typeof emotionalCheckins.$inferSelect[]),
-    Promise.resolve([] as typeof customEmotions.$inferSelect[]),
-    Promise.resolve(0),
     db.select().from(roadmaps).where(eq(roadmaps.userId, userId)).orderBy(roadmaps.sortOrder, roadmaps.id),
     db.select().from(milestones).where(eq(milestones.userId, userId)),
     db.select().from(financeAccounts).where(eq(financeAccounts.userId, userId)),
@@ -193,7 +177,6 @@ export default async function DashboardPage({
   const habitProgress = habitRows.length > 0
     ? Math.round((habitsDoneToday / habitRows.length) * 100)
     : 0;
-  const affirmationStats = computeAffirmationStats(affirmationCheckinRows, today);
   const focusTask = rankFocusTasks(
     allProjectTasks.filter((task) => isOpenTask(task.status) && task.status !== "blocked")
   )[0];
@@ -206,11 +189,6 @@ export default async function DashboardPage({
       .map((row) => ({ title: row.habit.title, currentStreak: row.stats.currentStreak })),
     plannedCount: selectedTaskCount,
     remainingCount: selectedTaskCount - completedCount,
-    hasAffirmations: on("manifestation") && activeAffirmationCount > 0,
-    affirmationCheckinsLeft: on("manifestation")
-      ? Object.values(affirmationStats.checkedToday).filter((done) => !done).length
-      : 0,
-    journalWritten: !on("journal") || Boolean(todaysJournal?.content),
   });
   const selectedTaskProgress = selectedTaskCount > 0
     ? Math.round((completedCount / selectedTaskCount) * 100)
@@ -267,7 +245,6 @@ export default async function DashboardPage({
                 [
                   { href: "/pomodoro", icon: "🍅", label: "Focus", module: "pomodoro" },
                   { href: "/projects", icon: "🧩", label: "Projects", module: "projects" },
-                  { href: "/manifestation", icon: "◌", label: "Manifestation", module: "manifestation" },
                   { href: "/finance", icon: "💰", label: "Finance", module: "finance" },
                   { href: "/roadmaps", icon: "🗺️", label: "Roadmaps", module: "roadmaps" },
                 ] as { href: string; icon: string; label: string; module: ModuleKey }[]
@@ -287,7 +264,7 @@ export default async function DashboardPage({
             </nav>
           </div>
 
-          <div className={`grid grid-cols-1 gap-2 ${STAT_COLS[1 + Number(on("habits")) + Number(on("manifestation"))]} sm:gap-3`}>
+          <div className={`grid grid-cols-1 gap-2 ${STAT_COLS[1 + Number(on("habits"))]} sm:gap-3`}>
             <div data-tilt className="home-stat-card rounded-2xl bg-orange p-3 text-white sm:p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/75">
                 {selectedDate === today ? "Today" : formatDateShort(selectedDate)}
@@ -304,16 +281,9 @@ export default async function DashboardPage({
               <p className="mt-1 text-xs font-semibold text-white/80">habits today</p>
             </div>
             ) : null}
-            {on("manifestation") ? (
-            <div data-tilt className="home-stat-card rounded-2xl bg-yellow p-3 text-ink sm:p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink/60">Momentum</p>
-              <p className="mt-2 font-display text-3xl font-bold sm:text-4xl"><CountUp value={affirmationStats.currentStreak} /></p>
-              <p className="mt-1 text-xs font-semibold text-ink/65">day streak</p>
-            </div>
-            ) : null}
           </div>
         </div>
-        <HomeCat nudges={catNudges} />
+        <HomeCat nudges={catNudges} nickname={nickname} />
       </section>
 
       <section aria-labelledby="week-heading" className="home-reveal home-delay-1 mt-6">
@@ -558,20 +528,6 @@ export default async function DashboardPage({
           </div>
         </Card>
       </section>
-      ) : null}
-
-      {on("manifestation") || on("journal") ? (
-      <ManifestationSection
-        showManifestation={on("manifestation")}
-        showJournal={on("journal")}
-        date={today}
-        journalContent={todaysJournal?.content}
-        activeAffirmationCount={activeAffirmationCount}
-        affirmationCheckins={affirmationStats.checkedToday}
-        affirmationStreak={affirmationStats.currentStreak}
-        emotionalCheckins={emotionCheckinRows}
-        customEmotions={customEmotionRows}
-      />
       ) : null}
 
       {on("roadmaps") || on("finance") ? (

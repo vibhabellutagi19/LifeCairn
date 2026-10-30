@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { db } from "./index";
 import {
-  affirmations,
   financeAccounts,
   financeTargets,
   milestones,
@@ -287,52 +286,6 @@ async function main() {
       targetDate: "2026-12-31",
       sortOrder: 5,
     },
-  ]));
-
-  console.log("Seeding affirmations...");
-
-  await db.insert(affirmations).values(withUser([
-    // Money — maintenance
-    { text: "I am so grateful I have 16.6 lakhs in FDs.", category: "Money", sortOrder: 0 },
-    { text: "I am so grateful I have 21 lakhs in mutual funds.", category: "Money", sortOrder: 1 },
-    { text: "I am so grateful 15 lakhs is coming from France.", category: "Money", sortOrder: 2 },
-    { text: "I am so grateful my total wealth is growing.", category: "Money", sortOrder: 3 },
-    { text: "I am so grateful I am financially safe today.", category: "Money", sortOrder: 4 },
-    // Money — goal
-    {
-      text: "By June 30, 2027, I am receiving 60,000 to 80,000 INR every month easily and passively.",
-      category: "Money",
-      sortOrder: 5,
-    },
-    {
-      text: "I feel financially independent, calm, and free. My lifestyle in India is fully covered. Money flows to me from multiple directions.",
-      category: "Money",
-      sortOrder: 6,
-    },
-    // Money — action
-    { text: "I love managing my money wisely. I love investing for monthly income.", category: "Money", sortOrder: 7 },
-    { text: "I love creating value through my gym software and homestay platform.", category: "Money", sortOrder: 8 },
-    { text: "I love receiving money easily. I love feeling abundant and secure.", category: "Money", sortOrder: 9 },
-    // Money — extra abundance
-    { text: "I attract money easily and from all directions.", category: "Money", sortOrder: 10 },
-    { text: "I always have more than enough.", category: "Money", sortOrder: 11 },
-    { text: "Money flows to me in expected and unexpected ways.", category: "Money", sortOrder: 12 },
-    { text: "I am a money magnet.", category: "Money", sortOrder: 13 },
-    { text: "I am financially free and secure.", category: "Money", sortOrder: 14 },
-    { text: "Money flows to me easily and abundantly.", category: "Money", sortOrder: 15 },
-
-    // Health
-    { text: "I'm sorry. Please forgive me. Thank you. I love you.", category: "Health", sortOrder: 0 },
-    { text: "My body knows exactly when. I trust the timing.", category: "Health", sortOrder: 1 },
-    { text: "I am grateful for my body and the strength it gives me every day.", category: "Health", sortOrder: 2 },
-
-    // Relationship
-    { text: "I choose my partner today, fully and intentionally.", category: "Relationship", sortOrder: 0 },
-    { text: "We are a team preparing for this transition together.", category: "Relationship", sortOrder: 1 },
-
-    // Career
-    { text: "I am building platforms that create real value for real people.", category: "Career", sortOrder: 0 },
-    { text: "Clarity comes from lived experience, not overthinking.", category: "Career", sortOrder: 1 },
   ]));
 
   console.log("Seeding finance accounts...");

@@ -9,7 +9,7 @@ export const ROLE_LABEL: Record<CircleRole, string> = {
   member: "Member",
 };
 
-/** Modules a circle can share. Journal and affirmations stay private. */
+/** Modules a circle can share. */
 export const SHAREABLE_MODULES: ModuleKey[] = ["habits", "finance", "projects"];
 
 export function isCircleRole(value: string): value is CircleRole {

@@ -9,7 +9,7 @@ import { isModuleKey, type ModuleKey } from "@/lib/modules";
 /** Modules the user switched off. New modules are on by default. */
 export const getDisabledModules = cache(async (userId: string): Promise<ModuleKey[]> => {
   const row = await db.query.userSettings.findFirst({ where: eq(userSettings.userId, userId) });
-  return [...(row?.disabledModules ?? []).filter(isModuleKey), "manifestation", "journal"];
+  return (row?.disabledModules ?? []).filter(isModuleKey);
 });
 
 /** Like requireUserId(), but sends the user to Profile if this module is switched off. */

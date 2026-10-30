@@ -9,7 +9,7 @@ export const MODULES = [
   { key: "review", label: "Review", emoji: "📊", href: "/review", description: "Weekly and monthly look back." },
 ] as const;
 
-export type ModuleKey = (typeof MODULES)[number]["key"] | "manifestation" | "journal";
+export type ModuleKey = (typeof MODULES)[number]["key"];
 
 export function isModuleKey(value: string): value is ModuleKey {
   return MODULES.some((m) => m.key === value);

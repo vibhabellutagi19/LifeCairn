@@ -9,30 +9,31 @@ type Phase = "walking" | "waving" | "idle";
 export type CatPhase = Phase | "napping";
 type Bubble = { kind: "hi"; message: string } | { kind: "nudge"; nudge: CatNudge };
 
-const GREETINGS = [
-  "Hi Vibs! 👋",
+const GREETINGS = (name: string | null) => [
+  name ? `Hi ${name}! 👋` : "Hi there! 👋",
   "Meow! Ready to shine today? ✨",
   "Hey you! I saved your spot 🐾",
-  "Purr-fect timing, Vibs! 💛",
+  name ? `Purr-fect timing, ${name}! 💛` : "Purr-fect timing! 💛",
   "Welcome back! One small step today? 🌱",
-  "Psst… you've got this, Vibs 💪",
+  name ? `Psst… you've got this, ${name} 💪` : "Psst… you've got this 💪",
 ];
 
 /** Random greeting that differs from the last one shown (remembered in localStorage). */
-function pickGreeting() {
+function pickGreeting(name: string | null) {
+  const greetings = GREETINGS(name);
   let last = -1;
   try {
     last = Number(localStorage.getItem("roadmap:cat-greeting") ?? -1);
   } catch {}
-  let next = Math.floor(Math.random() * GREETINGS.length);
-  if (next === last) next = (next + 1) % GREETINGS.length;
+  let next = Math.floor(Math.random() * greetings.length);
+  if (next === last) next = (next + 1) % greetings.length;
   try {
     localStorage.setItem("roadmap:cat-greeting", String(next));
   } catch {}
-  return GREETINGS[next];
+  return greetings[next];
 }
 
-export function HomeCat({ nudges }: { nudges: CatNudge[] }) {
+export function HomeCat({ nudges, nickname }: { nudges: CatNudge[]; nickname: string | null }) {
   const [phase, setPhase] = useState<Phase>("walking");
   const [bubble, setBubble] = useState<Bubble | null>(null);
   const [hops, setHops] = useState(0);
@@ -40,7 +41,7 @@ export function HomeCat({ nudges }: { nudges: CatNudge[] }) {
 
   function greet() {
     setPhase("waving");
-    setBubble((current) => current ?? { kind: "hi", message: pickGreeting() });
+    setBubble((current) => current ?? { kind: "hi", message: pickGreeting(nickname) });
   }
 
   // Skip the stroll for people who prefer reduced motion: just say hi.

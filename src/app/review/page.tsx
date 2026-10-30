@@ -3,15 +3,9 @@ import { and, eq, gte, lte, type AnyColumn } from "drizzle-orm";
 import { addMonths, format } from "date-fns";
 import { db } from "@/db";
 import {
-  affirmationCheckins,
-  affirmationManifestations,
-  customEmotions,
-  emotionalCheckins,
   financeEntries,
   habitLogs,
   habits,
-  hooponoponoRounds,
-  journalEntries,
   milestones,
   pomodoroSessions,
   projectTasks,
@@ -22,7 +16,6 @@ import {
 import { Badge, Card } from "@/components/ui";
 import { getDisabledModules, requireModule } from "@/lib/moduleSettings";
 import type { ModuleKey } from "@/lib/modules";
-import { customEmotionKey, EMOTIONS, type EmotionCategory } from "@/lib/emotions";
 import { formatDateShort, formatEUR } from "@/lib/format";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
 import { clsx } from "clsx";
@@ -56,26 +49,15 @@ async function loadPeriod(range: Range, today: string, userId: string) {
     allHabits,
     logs,
     pomodoros,
-    feelings,
-    customRows,
-    affirmationRows,
-    journals,
-    hooRounds,
     money,
     dueMilestones,
     dueProjectTasks,
-    wins,
   ] = await Promise.all([
     db.select({ completed: tasks.completed }).from(tasks).where(inRange(tasks.date, tasks.userId)),
     db.select().from(habits).where(eq(habits.userId, userId)),
     db.select({ habitId: habitLogs.habitId, date: habitLogs.date }).from(habitLogs)
       .where(eq(habitLogs.userId, userId)),
     db.select().from(pomodoroSessions).where(inRange(pomodoroSessions.date, pomodoroSessions.userId)),
-    Promise.resolve([] as typeof emotionalCheckins.$inferSelect[]),
-    Promise.resolve([] as typeof customEmotions.$inferSelect[]),
-    Promise.resolve([] as typeof affirmationCheckins.$inferSelect[]),
-    Promise.resolve([] as typeof journalEntries.$inferSelect[]),
-    Promise.resolve([] as typeof hooponoponoRounds.$inferSelect[]),
     db.select({ type: financeEntries.type, amount: financeEntries.amount }).from(financeEntries).where(inRange(financeEntries.date, financeEntries.userId)),
     db
       .select({ id: milestones.id, title: milestones.title, status: milestones.status, targetDate: milestones.targetDate, roadmap: roadmaps.title })
@@ -87,7 +69,6 @@ async function loadPeriod(range: Range, today: string, userId: string) {
       .from(projectTasks)
       .innerJoin(projects, eq(projectTasks.projectId, projects.id))
       .where(inRange(projectTasks.dueDate, projectTasks.userId)),
-    Promise.resolve([] as typeof affirmationManifestations.$inferSelect[]),
   ]);
 
   const days = daysIn(range);
@@ -124,38 +105,6 @@ async function loadPeriod(range: Range, today: string, userId: string) {
   const habitDone = perHabit.reduce((sum, h) => sum + h.done, 0);
   const habitDue = perHabit.reduce((sum, h) => sum + h.due, 0);
 
-  // Feelings
-  const lookup = new Map<string, { emoji: string; label: string; category: EmotionCategory }>([
-    ...EMOTIONS.map((e) => [e.key, { emoji: e.emoji, label: e.label, category: e.category }] as const),
-    ...customRows.map((e) => [customEmotionKey(e.id), { emoji: e.emoji, label: e.name, category: e.category }] as const),
-  ]);
-  const feelingCount = { positive: 0, negative: 0, missing: 0 };
-  const feelingTally = new Map<string, { emoji: string; label: string; count: number }>();
-  const moodByDay = new Map<string, Map<string, { emoji: string; count: number }>>();
-  for (const f of feelings) {
-    const option = lookup.get(f.emotion);
-    if (!option) continue;
-    feelingCount[option.category]++;
-    const t = feelingTally.get(option.label) ?? { emoji: option.emoji, label: option.label, count: 0 };
-    feelingTally.set(option.label, { ...t, count: t.count + 1 });
-    const day = moodByDay.get(f.date) ?? new Map();
-    const c = day.get(option.label) ?? { emoji: option.emoji, count: 0 };
-    day.set(option.label, { ...c, count: c.count + 1 });
-    moodByDay.set(f.date, day);
-  }
-  const feelingTotal = feelingCount.positive + feelingCount.negative + feelingCount.missing;
-  const topFeelings = [...feelingTally.values()].sort((a, b) => b.count - a.count).slice(0, 4);
-
-  // Practice
-  const slotsByDay = new Map<string, number>();
-  for (const row of affirmationRows) slotsByDay.set(row.date, (slotsByDay.get(row.date) ?? 0) + 1);
-  const affirmationFullDays = [...slotsByDay.values()].filter((n) => n >= 3).length;
-  const journalDays = new Set(journals.filter((j) => j.content.trim() || j.gratitude?.trim()).map((j) => j.date));
-  const gratitude = journals.flatMap((j) => (j.gratitude ?? "").split("\n").map((line) => line.trim()).filter(Boolean));
-  const hooByDay = new Map<string, number>();
-  for (const round of hooRounds) hooByDay.set(round.date, (hooByDay.get(round.date) ?? 0) + round.repetitions);
-  const hooReps = hooRounds.reduce((sum, r) => sum + r.repetitions, 0);
-
   // Focus
   const focusByDay = new Map<string, number>();
   const focusByTask = new Map<string, number>();
@@ -180,11 +129,8 @@ async function loadPeriod(range: Range, today: string, userId: string) {
     },
     habits: { done: habitDone, due: habitDue, percent: pct(habitDone, habitDue), perHabit, byDay: habitDay },
     focus: { minutes: focusMinutes, sessions: pomodoros.length, byDay: focusByDay, top: topFocus },
-    feelings: { count: feelingCount, total: feelingTotal, positivePercent: pct(feelingCount.positive, feelingTotal), top: topFeelings, byDay: moodByDay },
-    practice: { affirmationFullDays, slotsByDay, journalDays, gratitude, hooReps, hooSessions: hooRounds.length, hooByDay },
     money: { income, expense, net: income - expense },
     milestones: dueMilestones,
-    wins,
   };
 }
 
@@ -259,23 +205,13 @@ export default async function ReviewPage({
   const isCurrent = period === "week" ? range.start <= today && today <= range.end : monthKey === currentMonthKey();
   const label = period === "week" ? `${formatDateShort(range.start)} – ${formatDateShort(range.end)}` : format(new Date(`${monthKey}-01T00:00:00`), "MMMM yyyy");
 
-  const mostly = now.feelings.top[0];
   const headline = [
     on("pomodoro") && now.focus.minutes ? `focused ${hours(now.focus.minutes)}` : null,
     on("habits") && now.habits.due ? `kept ${now.habits.percent}% of your habits` : null,
-    on("manifestation") && mostly ? `felt mostly ${mostly.emoji} ${mostly.label.toLowerCase()}` : null,
   ].filter(Boolean);
 
   const focusMax = Math.max(1, ...now.days.map((d) => now.focus.byDay.get(d) ?? 0));
   const atGlanceRows: { label: string; module: ModuleKey; cell: (day: string) => { text: string; level: number; title: string } }[] = [
-    {
-      label: "Mood",
-      module: "manifestation",
-      cell: (day) => {
-        const top = [...(now.feelings.byDay.get(day)?.values() ?? [])].sort((a, b) => b.count - a.count)[0];
-        return { text: top?.emoji ?? "", level: top ? 0.35 : 0, title: top ? `Mostly ${top.emoji}` : "No check-ins" };
-      },
-    },
     {
       label: "Habits",
       module: "habits",
@@ -292,43 +228,16 @@ export default async function ReviewPage({
         return { text: m ? `${m}` : "", level: m / focusMax, title: m ? `${m} min focused` : "" };
       },
     },
-    {
-      label: "Affirm",
-      module: "manifestation",
-      cell: (day) => {
-        const n = now.practice.slotsByDay.get(day) ?? 0;
-        return { text: n >= 3 ? "✓" : n ? `${n}/3` : "", level: n / 3, title: `${n} of 3 check-ins` };
-      },
-    },
-    {
-      label: "Journal",
-      module: "journal",
-      cell: (day) => ({ text: now.practice.journalDays.has(day) ? "✎" : "", level: now.practice.journalDays.has(day) ? 1 : 0, title: now.practice.journalDays.has(day) ? "Journaled" : "" }),
-    },
-    {
-      label: "Hoʻopono",
-      module: "manifestation",
-      cell: (day) => {
-        const r = now.practice.hooByDay.get(day) ?? 0;
-        return { text: r ? "🌺" : "", level: r ? 1 : 0, title: r ? `${r} repetitions` : "" };
-      },
-    },
   ];
   const glanceRows = atGlanceRows.filter((row) => on(row.module));
   const rowColor: Record<string, string> = {
-    Mood: "var(--pink)",
     Habits: "var(--green)",
     Focus: "var(--orange)",
-    Affirm: "var(--yellow)",
-    Journal: "var(--blue)",
-    "Hoʻopono": "var(--pink)",
   };
 
   return (
     <div className="mx-auto max-w-[1500px]">
       <section className="rv-hero relative mb-8 overflow-hidden rounded-[2rem] bg-ink p-5 text-white sm:p-8 lg:p-10">
-        <span aria-hidden className="mood-star mood-star-1">✦</span>
-        <span aria-hidden className="mood-star mood-star-3">✧</span>
         <div className="relative z-10">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="rv-switch" role="group" aria-label="Period">
@@ -367,8 +276,6 @@ export default async function ReviewPage({
             {[
               { module: "pomodoro", label: "Focus", value: hours(now.focus.minutes), delta: <Delta now={now.focus.minutes} before={before.focus.minutes} unit="m" />, color: "bg-orange text-white" },
               { module: "habits", label: "Habits kept", value: `${now.habits.percent}%`, delta: <Delta now={now.habits.percent} before={before.habits.percent} unit="%" />, color: "bg-green text-white" },
-              { module: "manifestation", label: "Feeling good", value: now.feelings.total ? `${now.feelings.positivePercent}%` : "–", delta: <Delta now={now.feelings.positivePercent} before={before.feelings.positivePercent} unit="%" />, color: "bg-pink text-white" },
-              { module: "manifestation", label: "Full affirmation days", value: String(now.practice.affirmationFullDays), delta: <Delta now={now.practice.affirmationFullDays} before={before.practice.affirmationFullDays} />, color: "bg-yellow text-ink" },
             ]
               .filter((tile) => on(tile.module as ModuleKey))
               .map((tile, i) => (
@@ -481,50 +388,6 @@ export default async function ReviewPage({
         </AreaCard>
         ) : null}
 
-        {on("manifestation") ? (
-        <AreaCard emoji="◌" title="Feelings" href="/manifestation" accent="border-t-pink">
-          <p className="font-display text-4xl font-bold">{now.feelings.total}</p>
-          <p className="text-sm font-semibold text-muted">hourly check-ins</p>
-          {now.feelings.total ? (
-            <>
-              <div className="mt-4 flex h-4 overflow-hidden rounded-full border-2 border-ink" aria-label="Positive, negative and wanted feelings">
-                <span className="bg-green" style={{ width: `${pct(now.feelings.count.positive, now.feelings.total)}%` }} />
-                <span className="bg-orange" style={{ width: `${pct(now.feelings.count.negative, now.feelings.total)}%` }} />
-                <span className="bg-pink" style={{ width: `${pct(now.feelings.count.missing, now.feelings.total)}%` }} />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {now.feelings.top.map((f) => (
-                  <span key={f.label} className="rounded-full border-2 border-ink/15 bg-background px-2.5 py-1 text-xs font-bold">
-                    {f.emoji} {f.label} ×{f.count}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="mt-4 text-sm font-semibold text-muted">No feelings logged yet.</p>
-          )}
-        </AreaCard>
-        ) : null}
-
-        {(on("manifestation") || on("journal")) ? (
-        <AreaCard emoji="✨" title="Practice" href={on("manifestation") ? "/affirmations" : "/journal"} accent="border-t-yellow">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { module: "manifestation", value: `${now.practice.affirmationFullDays}/${now.pastDays.length || 0}`, label: "full affirmation days" },
-              { module: "journal", value: String(now.practice.journalDays.size), label: "journal days" },
-              { module: "journal", value: String(now.practice.gratitude.length), label: "gratitude notes" },
-              { module: "manifestation", value: now.practice.hooReps.toLocaleString("en-IN"), label: `hoʻoponopono · ${now.practice.hooSessions}×` },
-            ]
-              .filter((stat) => on(stat.module as ModuleKey))
-              .map((stat) => (
-              <div key={stat.label} className="rounded-xl border-2 border-ink/10 bg-background p-3">
-                <p className="font-display text-2xl font-bold">{stat.value}</p>
-                <p className="text-[11px] font-semibold text-muted">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </AreaCard>
-        ) : null}
 
         {(on("projects") || on("roadmaps")) ? (
         <AreaCard emoji="🧩" title="Work" href={on("projects") ? "/projects" : "/roadmaps"} accent="border-t-blue">
@@ -586,63 +449,6 @@ export default async function ReviewPage({
         </AreaCard>
         ) : null}
       </div>
-
-      {on("journal") || on("manifestation") ? (
-      <section aria-labelledby="highlights-heading" className={`mt-8 grid grid-cols-1 gap-6 ${on("journal") && on("manifestation") ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" : ""}`}>
-        {on("journal") ? (
-        <div>
-          <h2 id="highlights-heading" className="mb-3 font-display text-2xl font-bold sm:text-3xl">
-            <span className="home-marker is-always">Grateful for</span>
-          </h2>
-          <Card className="min-h-40">
-            {now.practice.gratitude.length ? (
-              <div className="flex flex-wrap gap-2">
-                {now.practice.gratitude.slice(0, 16).map((item, i) => (
-                  <span
-                    key={`${i}-${item}`}
-                    className={clsx("jar-note", ["bg-yellow", "bg-pink text-white", "bg-green text-white", "bg-blue text-white", "bg-orange text-white"][i % 5])}
-                    style={{ "--tilt": ["-2deg", "1.5deg", "-1deg", "2deg"][i % 4], animationDelay: `${Math.min(i, 10) * 50}ms` } as React.CSSProperties}
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm font-semibold text-muted">
-                Nothing in the gratitude jar for this {period}.{" "}
-                <Link href="/manifestation" className="home-text-link font-bold">
-                  Add one <span aria-hidden>&rarr;</span>
-                </Link>
-              </p>
-            )}
-          </Card>
-        </div>
-        ) : null}
-        {on("manifestation") ? (
-        <div>
-          <h2 className="mb-3 font-display text-2xl font-bold sm:text-3xl">
-            <span className="home-marker is-always">Wins</span>
-          </h2>
-          <Card className="min-h-40">
-            {now.wins.length ? (
-              <ul className="space-y-3">
-                {now.wins.map((win) => (
-                  <li key={win.id} className="win-card relative overflow-hidden rounded-xl border-[3px] border-ink p-3" style={{ "--tilt": "0deg" } as React.CSSProperties}>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-pink">🏆 {formatDateShort(win.manifestedOn)}</p>
-                    <p className="mt-1 font-display font-semibold leading-snug">“{win.affirmationText}”</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm font-semibold text-muted">
-                No affirmations marked as manifested in this {period}. They&rsquo;ll be celebrated here.
-              </p>
-            )}
-          </Card>
-        </div>
-        ) : null}
-      </section>
-      ) : null}
     </div>
   );
 }

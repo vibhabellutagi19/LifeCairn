@@ -22,9 +22,6 @@ type NudgeInput = {
   pendingHabits: { title: string; currentStreak: number }[];
   plannedCount: number;
   remainingCount: number;
-  hasAffirmations: boolean;
-  affirmationCheckinsLeft: number;
-  journalWritten: boolean;
 };
 
 /** The cat's pep talks, built from whatever is still open today. */
@@ -69,24 +66,6 @@ export function buildCatNudges(input: NudgeInput): CatNudge[] {
     nudges.push({
       emoji: "✅",
       text: `${input.remainingCount} ${input.remainingCount === 1 ? "task is" : "tasks are"} still open today. Knock one out and I'll purr.`,
-    });
-  }
-
-  if (input.hasAffirmations && input.affirmationCheckinsLeft > 0) {
-    nudges.push({
-      emoji: "✨",
-      text: `${input.affirmationCheckinsLeft} affirmation check-in${input.affirmationCheckinsLeft === 1 ? "" : "s"} left. Say it like you mean it.`,
-      href: "/affirmations",
-      cta: "Check in",
-    });
-  }
-
-  if (!input.journalWritten) {
-    nudges.push({
-      emoji: "✎",
-      text: `${name ? `${name}, your` : "Your"} journal is feeling lonely. Three honest lines is plenty.`,
-      href: `/journal/${input.today}`,
-      cta: "Open journal",
     });
   }
 
