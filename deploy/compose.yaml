@@ -28,6 +28,14 @@ services:
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
       ALLOWED_USER_IDS: ${MANIFESTATION_ALLOWED_USER_IDS:?Set the Clerk user ids allowed into Manifestation}
+      APP_URL: https://${MANIFESTATION_SITE_ADDRESS}
+      # Reminders and reports: email (any SMTP) and/or Telegram. Unset = that channel is off.
+      SMTP_HOST: ${MANIFESTATION_SMTP_HOST:-}
+      SMTP_PORT: ${MANIFESTATION_SMTP_PORT:-587}
+      SMTP_USER: ${MANIFESTATION_SMTP_USER:-}
+      SMTP_PASS: ${MANIFESTATION_SMTP_PASS:-}
+      SMTP_FROM: ${MANIFESTATION_SMTP_FROM:-}
+      TELEGRAM_BOT_TOKEN: ${MANIFESTATION_TELEGRAM_BOT_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
