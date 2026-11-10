@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 import { PaceChart } from "@/components/PaceChart";
 import { PrivacyBlur } from "@/components/PrivacyBlur";
+import { CardHeader } from "@/components/FinanceHeadings";
 import { CURRENCIES, formatEUR, formatMoney, type Currency } from "@/lib/format";
 
 function pct(part: number, whole: number) {
@@ -66,7 +67,6 @@ export function MonthPulse({
   isCurrent,
   income,
   expense,
-  quickLog,
 }: {
   monthLabel: string;
   daily: number[];
@@ -74,7 +74,6 @@ export function MonthPulse({
   isCurrent: boolean;
   income: number;
   expense: number;
-  quickLog: React.ReactNode;
 }) {
   const days = daily.length;
   const projected = uptoDay > 0 ? (expense / uptoDay) * days : 0;
@@ -85,12 +84,7 @@ export function MonthPulse({
   const rate = pct(kept, income);
 
   return (
-    <Card className="mb-6 overflow-hidden p-0 sm:p-0">
-      <div className="border-b-[3px] border-ink bg-yellow px-4 py-3 sm:px-5">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em]">Quick log an expense</p>
-        {quickLog}
-      </div>
-
+    <Card className="overflow-hidden p-0 sm:p-0">
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <div className="border-b-[3px] border-ink p-4 sm:p-5 lg:border-b-0 lg:border-r-[3px]">
           <span
@@ -134,12 +128,16 @@ export function MonthPulse({
         </div>
 
         <div className="p-4 sm:p-5">
-          <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h2 className="font-display text-xl font-bold">Spending pace</h2>
-            <span className="text-xs font-bold uppercase tracking-wide text-muted">
-              {isCurrent ? `Day ${uptoDay} of ${days}` : monthLabel}
-            </span>
-          </div>
+          <CardHeader
+            className="mb-2"
+            title="Spending pace"
+            description="What you've spent so far, day by day, against your income."
+            action={
+              <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
+                {isCurrent ? `Day ${uptoDay} of ${days}` : monthLabel}
+              </span>
+            }
+          />
           <PaceChart daily={daily} income={income} uptoDay={uptoDay} monthLabel={monthLabel} />
         </div>
       </div>
@@ -164,11 +162,11 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
 
   return (
     <Card className="flex flex-col">
-      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold">Six-month trend</h2>
-          <p className="text-sm font-semibold text-muted">Money in and out each month. Tap a month to open it.</p>
-        </div>
+      <CardHeader
+        className="mb-1"
+        title="Six-month trend"
+        description="Money in and out each month. Tap a month to open it."
+        action={
         <div className="flex gap-3 text-xs font-bold text-muted" aria-hidden>
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-blue" /> In
@@ -177,7 +175,8 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
             <span className="h-2.5 w-2.5 rounded-sm bg-pink" /> Out
           </span>
         </div>
-      </div>
+        }
+      />
 
       <div className="mt-4 grid flex-1 grid-cols-6 items-end gap-2 border-b-2 border-ink" style={{ minHeight: "11rem" }}>
         {months.map((m) => {
@@ -313,12 +312,8 @@ export function NetWorth({
       <PrivacyBlur
         storageKey="lifecairn:finance:networth-hidden"
         label="net worth amounts"
-        header={
-          <>
-            <h2 className="font-display text-xl font-bold">Net worth</h2>
-            <p className="text-sm font-semibold text-muted">Everything you’ve saved, kept apart by currency.</p>
-          </>
-        }
+        title="Net worth"
+        description="Everything you’ve saved, including emergency funds, by currency."
       >
 
         {currencies.length === 0 ? (

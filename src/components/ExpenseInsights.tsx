@@ -1,4 +1,5 @@
 import { Card, EmptyState } from "@/components/ui";
+import { CardHeader } from "@/components/FinanceHeadings";
 import { categoryColor } from "@/lib/financeCategories";
 import { formatDateShort, formatEUR } from "@/lib/format";
 
@@ -57,11 +58,8 @@ export function ExpenseBreakdown({
   items: CategoryTotal[];
 }) {
   return (
-    <Card className="mb-6">
-      <div className="mb-5">
-        <h2 className="font-display text-xl font-bold">Expense breakdown</h2>
-        <p className="text-sm font-semibold text-muted">Where your money went in {monthLabel}</p>
-      </div>
+    <Card>
+      <CardHeader className="mb-5" title="By category" description={`Where your money went in ${monthLabel}.`} />
 
       {items.length === 0 ? (
         <EmptyState>No expenses recorded for {monthLabel}.</EmptyState>
@@ -119,14 +117,15 @@ export function SpendingByTag({
 }) {
   if (tags.length === 0) return null;
   return (
-    <Card className="mb-6">
+    <Card>
       {/* Named group so the per-tag <details> inside keep their own open state styling. */}
       <details open className="group/tags">
-        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-          <div>
-            <h2 className="font-display text-xl font-bold">Spending by tag</h2>
-            <p className="text-sm font-semibold text-muted">Trips and projects you tagged in {monthLabel}</p>
-          </div>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CardHeader
+            className=""
+            title="By tag"
+            description={`Trips and projects you tagged in ${monthLabel}.`}
+            action={
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
               {tags.length} {tags.length === 1 ? "tag" : "tags"} ·{" "}
@@ -139,6 +138,8 @@ export function SpendingByTag({
               ▼
             </span>
           </div>
+            }
+          />
         </summary>
 
         <div className="mt-5 grid grid-cols-1 items-start gap-4 md:grid-cols-2">

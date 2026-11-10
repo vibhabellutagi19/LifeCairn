@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { clsx } from "clsx";
+import { CardHeader } from "@/components/FinanceHeadings";
 
 const CHANGE_EVENT = "lifecairn:privacy-blur";
 
@@ -29,12 +30,14 @@ function subscribe(onChange: () => void) {
 export function PrivacyBlur({
   storageKey,
   label,
-  header,
+  title,
+  description,
   children,
 }: {
   storageKey: string;
   label: string;
-  header: React.ReactNode;
+  title: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   const hidden = useSyncExternalStore(subscribe, () => readHidden(storageKey), () => false);
@@ -56,19 +59,22 @@ export function PrivacyBlur({
           "[&_.private-value]:pointer-events-none [&_.private-value]:select-none [&_.private-value]:blur-md"
       )}
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">{header}</div>
-        <button
-          type="button"
-          onClick={toggle}
-          aria-pressed={hidden}
-          aria-label={hidden ? `Show ${label}` : `Hide ${label}`}
-          title={hidden ? `Show ${label}` : `Hide ${label}`}
-          className="brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface hover:bg-yellow"
-        >
-          {hidden ? <EyeOffIcon /> : <EyeIcon />}
-        </button>
-      </div>
+      <CardHeader
+        title={title}
+        description={description}
+        action={
+          <button
+            type="button"
+            onClick={toggle}
+            aria-pressed={hidden}
+            aria-label={hidden ? `Show ${label}` : `Hide ${label}`}
+            title={hidden ? `Show ${label}` : `Hide ${label}`}
+            className="brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface hover:bg-yellow"
+          >
+            {hidden ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        }
+      />
       {children}
     </div>
   );

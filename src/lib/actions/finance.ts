@@ -16,6 +16,7 @@ import { isCurrency } from "@/lib/format";
 
 function revalidateAll() {
   revalidatePath("/finance");
+  revalidatePath("/finance/wealth");
   revalidatePath("/");
   revalidatePath("/review");
 }
