@@ -30,7 +30,7 @@ import type { ModuleKey } from "@/lib/modules";
 import { isActiveOnDate, rankFocusTasks } from "@/lib/focusNext";
 import { computeHabitStats } from "@/lib/habitStats";
 import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO, weekRangeISO } from "@/lib/dates";
-import { formatDateLong, formatDateShort, formatEUR, formatINR } from "@/lib/format";
+import { formatCurrencyTotals, formatDateLong, formatDateShort, formatEUR, sumByCurrency } from "@/lib/format";
 import { isOpenTask } from "@/lib/taskStatus";
 
 export const dynamic = "force-dynamic";
@@ -163,9 +163,11 @@ export default async function DashboardPage({
   const completedCount =
     selectedTasks.filter((task) => task.completed).length +
     selectedProjectTasks.filter((task) => task.status === "done").length;
-  const totalBalance = accounts
-    .filter((saving) => saving.type !== "cash")
-    .reduce((sum, saving) => sum + Number(saving.balance), 0);
+  const totalBalance = sumByCurrency(
+    accounts.filter((saving) => saving.type !== "cash"),
+    (saving) => saving.balance,
+    (saving) => saving.currency
+  );
   const monthIncomeTotal = Number(monthIncome[0]?.total ?? 0);
   const habitRows = activeHabitsToday.map((h) => {
     const dates = allHabitLogs.filter((l) => l.habitId === h.id).map((l) => l.date);
@@ -591,7 +593,7 @@ export default async function DashboardPage({
             </div>
             <div className="mt-7">
               <p className="text-xs font-bold uppercase tracking-wide text-muted">Total savings</p>
-              <p className="font-display text-3xl font-bold">{formatINR(totalBalance)}</p>
+              <p className="font-display text-3xl font-bold">{formatCurrencyTotals(totalBalance)}</p>
             </div>
             <div className="my-5 h-px bg-ink/15" />
             <p className="text-xs font-bold uppercase tracking-wide text-muted">Income this month</p>

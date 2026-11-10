@@ -10,6 +10,7 @@ A local-first tracker for your Oct–Dec 2026 roadmap: Career, Money, Health, an
 - **Daily Tasks** — plan tasks per day, optionally tag them to a roadmap, navigate day by day.
 - **Habit Tracker** — a monthly calendar grid: habits as rows, days as columns. Click any past day to backfill a missed check-in (future days are locked); today's column is highlighted. Streak (consecutive days, with a same-day grace period) and score (lifetime completions, never decreases) are derived live from your check-in history, never stored. Click a habit's title to rename it or change its target in place without losing its streak — for a habit that evolves (e.g. 30min walk → 45min walk), edit it rather than starting a new one. Habits can also get an optional end date for ones that genuinely finish (vs. the pause/resume toggle, for ones you might pick back up). A compact "Habits" card on the Dashboard lets you check today's habits without leaving the home page.
 - **Finance** — accounts (FDs, mutual funds, etc.), an income/expense log, net worth, and a monthly income target with progress.
+- **Telegram bot** (optional) — link your chat on Profile, then log expenses (`/e 12.50 Lidl food #trip`) and income (`/i`), tick habits (`/h`) and change project task status (`/t`) from Telegram. Setup in [DEPLOY.md](DEPLOY.md#telegram-bot-optional).
 - **Review** — week/month rollups: task completion %, habit streaks, net cash flow, milestones due in the period.
 
 ## First-time setup
@@ -18,7 +19,7 @@ Requires Node.js and Docker Desktop (for local Postgres).
 
 ```bash
 npm install
-npm run docker:up      # starts Postgres in Docker (localhost:5432)
+npm run docker:up      # starts Postgres in Docker (localhost:5433)
 npm run db:push        # creates the schema
 npm run db:seed        # loads your Career/Money/Health/Relationship roadmap + accounts (skips if data already exists)
 npm run db:seed-projects  # imports Move & NimmaVasti (projects/releases/tasks) from your spreadsheet (skips if data already exists)

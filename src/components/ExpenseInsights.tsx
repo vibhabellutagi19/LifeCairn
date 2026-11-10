@@ -1,6 +1,7 @@
 import { Card, EmptyState } from "@/components/ui";
+import { CardHeader } from "@/components/FinanceHeadings";
 import { categoryColor } from "@/lib/financeCategories";
-import { formatEUR } from "@/lib/format";
+import { formatDateShort, formatEUR } from "@/lib/format";
 
 type CategoryTotal = { category: string; total: number };
 
@@ -57,11 +58,8 @@ export function ExpenseBreakdown({
   items: CategoryTotal[];
 }) {
   return (
-    <Card className="mb-6">
-      <div className="mb-5">
-        <h2 className="font-display text-xl font-bold">Expense breakdown</h2>
-        <p className="text-sm font-semibold text-muted">Where your money went in {monthLabel}</p>
-      </div>
+    <Card>
+      <CardHeader className="mb-5" title="By category" description={`Where your money went in ${monthLabel}.`} />
 
       {items.length === 0 ? (
         <EmptyState>No expenses recorded for {monthLabel}.</EmptyState>
@@ -92,67 +90,131 @@ export function ExpenseBreakdown({
   );
 }
 
-export type TagSummary = { tag: string; total: number; count: number; items: CategoryTotal[] };
+export type TaggedExpense = {
+  id: number;
+  date: string;
+  source: string;
+  category: string;
+  amount: number;
+  notes: string | null;
+};
 
-export function SpendingByTag({ tags }: { tags: TagSummary[] }) {
+export type TagSummary = {
+  tag: string;
+  total: number;
+  items: CategoryTotal[];
+  expenses: TaggedExpense[];
+};
+
+export function SpendingByTag({
+  tags,
+  monthLabel,
+  monthTotal,
+}: {
+  tags: TagSummary[];
+  monthLabel: string;
+  monthTotal: number;
+}) {
   if (tags.length === 0) return null;
-  const max = tags[0].total;
   return (
-    <Card className="mb-6">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-bold">Spending by tag</h2>
-          <p className="text-sm font-semibold text-muted">All-time, per trip or project. Tap a tag for details.</p>
-        </div>
-        <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
-          {tags.length} {tags.length === 1 ? "tag" : "tags"}
-        </span>
-      </div>
-      <div className="divide-y-2 divide-ink/10">
-        {tags.map(({ tag, total, count, items }) => (
-          <details key={tag} className="group py-3">
-            <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
-              <span className="w-4 shrink-0 text-xs font-bold text-muted transition-transform group-open:rotate-90">
-                ▶
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-bold text-blue">#{tag}</span>
-                  <span className="shrink-0 font-display text-lg font-bold">{formatEUR(total)}</span>
+    <Card>
+      {/* Named group so the per-tag <details> inside keep their own open state styling. */}
+      <details open className="group/tags">
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CardHeader
+            className=""
+            title="By tag"
+            description={`Trips and projects you tagged in ${monthLabel}.`}
+            action={
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
+              {tags.length} {tags.length === 1 ? "tag" : "tags"} ·{" "}
+              {formatEUR(tags.reduce((sum, t) => sum + t.total, 0))}
+            </span>
+            <span
+              aria-hidden
+              className="brut-border flex h-9 w-9 items-center justify-center rounded-md bg-surface text-xs font-bold transition-transform group-open/tags:rotate-180"
+            >
+              ▼
+            </span>
+          </div>
+            }
+          />
+        </summary>
+
+        <div className="mt-5 grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+          {tags.map(({ tag, total, items, expenses }, index) => (
+            <div
+              key={tag}
+              className={`brut-border overflow-hidden rounded-md bg-surface ${index === 0 ? "brut-shadow" : ""}`}
+            >
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="brut-border truncate rounded-full bg-blue px-3 py-0.5 text-sm font-bold text-white">
+                    #{tag}
+                  </span>
+                  <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted">
+                    {pct(total, monthTotal).toFixed(0)}% of month
+                  </span>
                 </div>
-                <div className="mt-1.5 flex h-2.5 overflow-hidden rounded-full bg-background">
-                  <div className="flex h-full" style={{ width: `${Math.max(4, pct(total, max))}%` }}>
-                    {items.map(({ category, total: value }) => (
-                      <span
-                        key={category}
-                        className="h-full"
-                        style={{ width: `${pct(value, total)}%`, backgroundColor: categoryColor(category) }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </summary>
-            <div className="ml-7 mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {items.map(({ category, total: value }) => (
-                <div key={category} className="rounded-md bg-background px-3 py-2">
-                  <div className="flex items-center gap-1.5">
+                <p className="mt-3 font-display text-3xl font-bold">{formatEUR(total)}</p>
+                <p className="text-xs font-bold text-muted">
+                  {expenses.length} {expenses.length === 1 ? "expense" : "expenses"}
+                </p>
+
+                <div className="brut-border mt-4 flex h-3 overflow-hidden rounded-full bg-background">
+                  {items.map(({ category, total: value }) => (
                     <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: categoryColor(category) }}
+                      key={category}
+                      className="h-full"
+                      title={`${category}: ${formatEUR(value)}`}
+                      style={{ width: `${pct(value, total)}%`, backgroundColor: categoryColor(category) }}
                     />
-                    <span className="truncate text-xs font-bold uppercase text-muted">{category}</span>
-                  </div>
-                  <p className="font-bold">{formatEUR(value)}</p>
+                  ))}
                 </div>
-              ))}
-              <p className="col-span-full text-xs font-semibold text-muted">
-                {count} {count === 1 ? "expense" : "expenses"} tagged
-              </p>
+                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                  {items.map(({ category, total: value }) => (
+                    <li key={category} className="flex items-center gap-1.5 text-xs">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: categoryColor(category) }}
+                      />
+                      <span className="font-bold uppercase text-muted">{category}</span>
+                      <span className="font-bold">{formatEUR(value)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <details className="group border-t-2 border-ink">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-background px-4 py-2.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">Show {expenses.length === 1 ? "expense" : `all ${expenses.length} expenses`}</span>
+                  <span className="hidden group-open:inline">Hide expenses</span>
+                  <span aria-hidden className="transition-transform group-open:rotate-180">▼</span>
+                </summary>
+                <ul className="max-h-80 divide-y divide-ink/10 overflow-y-auto">
+                  {expenses.map((expense) => (
+                    <li key={expense.id} className="relative flex items-center gap-3 py-2.5 pl-5 pr-4">
+                      <span
+                        className="absolute inset-y-0 left-0 w-1.5"
+                        style={{ backgroundColor: categoryColor(expense.category) }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold" title={expense.source}>{expense.source}</p>
+                        <p className="truncate text-xs font-semibold text-muted">
+                          {formatDateShort(expense.date)} · {expense.category}
+                          {expense.notes ? ` · ${expense.notes}` : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-display font-bold">{formatEUR(expense.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </div>
-          </details>
-        ))}
-      </div>
+          ))}
+        </div>
+      </details>
     </Card>
   );
 }

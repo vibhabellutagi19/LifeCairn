@@ -20,17 +20,20 @@ export function SavingAccountControls({
   name,
   type,
   balance,
+  currency,
 }: {
   id: number;
   name: string;
   type: string;
   balance: string;
+  currency: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [nameValue, setNameValue] = useState(name);
   const [typeValue, setTypeValue] = useState(type);
+  const [currencyValue, setCurrencyValue] = useState(currency);
   const [isPending, startTransition] = useTransition();
-  const dirty = nameValue.trim() !== name || typeValue !== type;
+  const dirty = nameValue.trim() !== name || typeValue !== type || currencyValue !== currency;
 
   if (!isEditing) {
     return (
@@ -39,12 +42,16 @@ export function SavingAccountControls({
         <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-bold uppercase text-muted">
           {TYPE_LABEL[type] ?? type}
         </span>
+        <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-bold uppercase text-muted">
+          {currency}
+        </span>
         <button
           type="button"
           className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-blue hover:underline"
           onClick={() => {
             setNameValue(name);
             setTypeValue(type);
+            setCurrencyValue(currency);
             setIsEditing(true);
           }}
         >
@@ -83,6 +90,10 @@ export function SavingAccountControls({
           </option>
         ))}
       </Select>
+      <Select aria-label="Currency" value={currencyValue} onChange={(event) => setCurrencyValue(event.target.value)}>
+        <option value="INR">₹ INR</option>
+        <option value="EUR">€ EUR</option>
+      </Select>
       <Button
         type="button"
         size="sm"
@@ -93,6 +104,7 @@ export function SavingAccountControls({
           formData.set("name", nameValue);
           formData.set("type", typeValue);
           formData.set("balance", balance);
+          formData.set("currency", currencyValue);
           startTransition(async () => {
             await updateSaving(id, formData);
             setIsEditing(false);

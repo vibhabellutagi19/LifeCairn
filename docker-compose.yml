@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: roadmap
       POSTGRES_DB: roadmap
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - roadmap_pgdata:/var/lib/postgresql/data
 
