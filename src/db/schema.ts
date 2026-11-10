@@ -27,6 +27,7 @@ export const financeEntryType = pgEnum("finance_entry_type", [
 
 export const financeAccountType = pgEnum("finance_account_type", [
   "fd",
+  "rd",
   "mutual_fund",
   "cash",
   "bank",
@@ -103,6 +104,13 @@ export const financeAccounts = pgTable("finance_accounts", {
   type: financeAccountType("type").notNull().default("other"),
   balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
   currency: varchar("currency", { length: 3 }).notNull().default("INR"), // "INR" | "EUR"
+  // Deposit terms (FD / RD only, all optional). Interest, maturity value and
+  // payouts are computed from these in src/lib/deposits.ts, never stored.
+  depositAmount: numeric("deposit_amount", { precision: 14, scale: 2 }), // FD principal, or RD monthly instalment
+  interestRate: numeric("interest_rate", { precision: 5, scale: 2 }), // % per year
+  depositStart: date("deposit_start"),
+  depositMaturity: date("deposit_maturity"),
+  interestPayout: varchar("interest_payout", { length: 10 }), // "maturity" | "monthly" | "quarterly"
   notes: text("notes"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

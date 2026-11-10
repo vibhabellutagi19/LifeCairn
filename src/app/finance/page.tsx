@@ -22,6 +22,7 @@ import { currentMonthKey, daysInMonthISO, monthRangeISO, shiftMonthKey, todayISO
 import { EXPENSE_CATEGORIES } from "@/lib/financeCategories";
 import { CURRENCIES, formatDateLong, formatEUR, formatMoney, sumByCurrency } from "@/lib/format";
 import { financeHref, formatMonthLabel, resolveMonth } from "@/lib/financeView";
+import { depositTermsOf, summarizeDeposit } from "@/lib/deposits";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +165,13 @@ export default async function FinancePage({
   // Wealth teaser: everything saved (emergency funds included), per currency.
   const netWorth = sumByCurrency(accounts, (a) => a.balance, (a) => a.currency);
   const netWorthCurrencies = CURRENCIES.filter((c) => netWorth[c] !== 0);
+  // The next deposit to mature (a matured one still waiting to be renewed counts first).
+  const nextMaturity = accounts
+    .flatMap((a) => {
+      const terms = depositTermsOf(a);
+      return terms ? [{ name: a.name, currency: a.currency, terms, summary: summarizeDeposit(terms, todayISO()) }] : [];
+    })
+    .sort((a, b) => a.terms.maturity.localeCompare(b.terms.maturity))[0];
   const defaultEntryDate = selectedMonth === monthKey ? todayISO() : monthRangeISO(selectedMonth).end;
 
   const monthLabel = formatMonthLabel(selectedMonth);
@@ -413,6 +421,24 @@ export default async function FinancePage({
                 {latestSnapshot ? formatMonthLabel(latestSnapshot.month) : "None yet"}
               </p>
             </div>
+            {nextMaturity ? (
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                  {nextMaturity.summary.status === "matured" ? "Matured" : "Next maturity"}
+                </p>
+                <p className="font-display text-xl font-bold">
+                  {nextMaturity.name} · {new Date(`${nextMaturity.terms.maturity}T00:00:00`).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </p>
+                <p className="text-xs font-semibold text-muted">
+                  {formatMoney(nextMaturity.summary.maturityValue, nextMaturity.currency)}
+                  {nextMaturity.summary.status === "matured" ? " · renew or close" : ` · in ${nextMaturity.summary.daysLeft} days`}
+                </p>
+              </div>
+            ) : null}
           </div>
           <span className="brut-border brut-shadow-sm rounded-md bg-orange px-4 py-2 text-sm font-bold uppercase tracking-wide text-white group-hover:opacity-90">
             See wealth →

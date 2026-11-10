@@ -1,13 +1,16 @@
 "use client";
 
-import { useId, useRef, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { Button, Input, Select } from "@/components/ui";
+import { DepositTermsFields } from "@/components/DepositTerms";
 import { createSaving } from "@/lib/actions/finance";
 
 export function NewSavingModal() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [isPending, startTransition] = useTransition();
+  const [type, setType] = useState("mutual_fund");
+  const [error, setError] = useState<string | null>(null);
 
   const close = () => dialogRef.current?.close();
 
@@ -56,8 +59,14 @@ export function NewSavingModal() {
               const form = event.currentTarget;
               const formData = new FormData(form);
               startTransition(async () => {
-                await createSaving(formData);
+                const result = await createSaving(formData);
+                if (result && !result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                setError(null);
                 form.reset();
+                setType("mutual_fund");
                 close();
               });
             }}
@@ -78,8 +87,9 @@ export function NewSavingModal() {
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide" htmlFor={`${titleId}-type`}>
                 Saving type
               </label>
-              <Select id={`${titleId}-type`} name="type" defaultValue="mutual_fund">
+              <Select id={`${titleId}-type`} name="type" value={type} onChange={(event) => setType(event.target.value)}>
                 <option value="fd">Fixed Deposit</option>
+                <option value="rd">Recurring Deposit</option>
                 <option value="mutual_fund">Mutual Fund</option>
                 <option value="stocks">Stocks</option>
                 <option value="bank">Bank balance</option>
@@ -110,6 +120,20 @@ export function NewSavingModal() {
                 </Select>
               </div>
             </div>
+            {type === "fd" || type === "rd" ? (
+              <fieldset className="brut-border space-y-3 rounded-md bg-background p-3">
+                <legend className="px-1 text-xs font-bold uppercase tracking-wide">Deposit terms (optional)</legend>
+                <p className="text-xs font-semibold text-muted">
+                  Add them to see interest, maturity value and payouts on the Wealth page. You can add them later too.
+                </p>
+                <DepositTermsFields key={type} type={type} />
+              </fieldset>
+            ) : null}
+            {error ? (
+              <p role="alert" className="text-sm font-bold text-pink">
+                {error}
+              </p>
+            ) : null}
             <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Cancel

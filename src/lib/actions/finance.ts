@@ -13,6 +13,7 @@ import {
 import { isExpenseCategory, parseTags } from "@/lib/financeCategories";
 import { requireUserId } from "@/lib/auth";
 import { isCurrency } from "@/lib/format";
+import { isDepositType, isInterestPayout } from "@/lib/deposits";
 
 function revalidateAll() {
   revalidatePath("/finance");
@@ -21,10 +22,49 @@ function revalidateAll() {
   revalidatePath("/review");
 }
 
-const SAVING_TYPES = ["fd", "mutual_fund", "cash", "bank", "stocks", "other"] as const;
+const SAVING_TYPES = ["fd", "rd", "mutual_fund", "cash", "bank", "stocks", "other"] as const;
 
 function isSavingType(value: string): value is (typeof SAVING_TYPES)[number] {
   return SAVING_TYPES.includes(value as (typeof SAVING_TYPES)[number]);
+}
+
+const NO_TERMS = {
+  depositAmount: null,
+  interestRate: null,
+  depositStart: null,
+  depositMaturity: null,
+  interestPayout: null,
+};
+
+/**
+ * Deposit terms from a form: all blank clears them, otherwise every field must
+ * be valid. Non-deposit types never keep terms. Returns null when invalid.
+ */
+function depositTermsFromForm(formData: FormData, type: string) {
+  if (!isDepositType(type)) return NO_TERMS;
+  const field = (name: string) => String(formData.get(name) || "").replaceAll(",", "").trim();
+  const amountRaw = field("depositAmount");
+  const rateRaw = field("interestRate");
+  const start = field("depositStart");
+  const maturity = field("depositMaturity");
+  if (!amountRaw && !rateRaw && !start && !maturity) return NO_TERMS;
+
+  const amount = Number(amountRaw);
+  const rate = Number(rateRaw);
+  const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 30) return null;
+  if (!isDate(start) || !isDate(maturity) || maturity <= start) return null;
+  const payoutRaw = field("interestPayout") || "maturity";
+  const payout = type === "rd" ? "maturity" : payoutRaw;
+  if (!isInterestPayout(payout)) return null;
+  return {
+    depositAmount: amount.toFixed(2),
+    interestRate: rate.toFixed(2),
+    depositStart: start,
+    depositMaturity: maturity,
+    interestPayout: payout,
+  };
 }
 
 export async function createSaving(formData: FormData) {
@@ -38,6 +78,13 @@ export async function createSaving(formData: FormData) {
   if (!balanceRaw || !Number.isFinite(balance) || balance < 0) return;
   const currency = String(formData.get("currency") || "INR");
   if (!isCurrency(currency)) return;
+  const terms = depositTermsFromForm(formData, typeRaw);
+  if (!terms) {
+    return {
+      ok: false as const,
+      error: "Deposit terms: fill in every field (rate up to 30%, maturity after start), or leave them all blank.",
+    };
+  }
 
   await db.insert(financeAccounts).values({
     userId,
@@ -45,6 +92,7 @@ export async function createSaving(formData: FormData) {
     type: typeRaw,
     balance: balance.toFixed(2),
     currency,
+    ...terms,
   });
   revalidateAll();
 }
@@ -61,9 +109,39 @@ export async function updateSaving(id: number, formData: FormData) {
   if (!isCurrency(currency)) return;
   await db
     .update(financeAccounts)
-    .set({ name, type: typeRaw, balance: balance.toFixed(2), currency, updatedAt: new Date() })
+    .set({
+      name,
+      type: typeRaw,
+      balance: balance.toFixed(2),
+      currency,
+      // Terms only make sense on a deposit; moving away from FD/RD drops them.
+      ...(isDepositType(typeRaw) ? {} : NO_TERMS),
+      updatedAt: new Date(),
+    })
     .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
   revalidateAll();
+}
+
+/** Save (or clear, when all blank) the rate, dates and payout of an FD/RD. */
+export async function updateDepositTerms(id: number, formData: FormData) {
+  const userId = await requireUserId();
+  const account = await db.query.financeAccounts.findFirst({
+    where: and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)),
+  });
+  if (!account || !isDepositType(account.type)) return { ok: false as const, error: "Not a deposit." };
+  const terms = depositTermsFromForm(formData, account.type);
+  if (!terms) {
+    return {
+      ok: false as const,
+      error: "Fill in every field: an amount, a rate up to 30%, and a maturity date after the start.",
+    };
+  }
+  await db
+    .update(financeAccounts)
+    .set({ ...terms, updatedAt: new Date() })
+    .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
+  revalidateAll();
+  return { ok: true as const };
 }
 
 export async function deleteSaving(id: number) {

@@ -6,6 +6,7 @@ import { deleteSaving, updateSaving } from "@/lib/actions/finance";
 
 const TYPE_LABEL: Record<string, string> = {
   fd: "Fixed Deposit",
+  rd: "Recurring Deposit",
   mutual_fund: "Mutual Fund",
   cash: "Emergency Fund",
   bank: "Bank",

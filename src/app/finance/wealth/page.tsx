@@ -9,6 +9,8 @@ import { NetWorth, type NetWorthPoint } from "@/components/FinanceDashboard";
 import { AllocationCharts, type AllocationRow } from "@/components/AllocationCharts";
 import { SavingAccountControls } from "@/components/AccountRow";
 import { NewSavingModal } from "@/components/NewSavingModal";
+import { DepositsCard, type DepositRow } from "@/components/Deposits";
+import { depositTermsOf, isDepositType, summarizeDeposit } from "@/lib/deposits";
 import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
 import { requireModule } from "@/lib/moduleSettings";
 import { currentMonthKey, monthRangeISO, todayISO } from "@/lib/dates";
@@ -110,9 +112,27 @@ export default async function WealthPage({
     ])
   ) as Record<Currency, NetWorthPoint[]>;
 
+  const today = todayISO();
   const defaultSnapshotDate =
     selectedSnapshot?.snapshotDate ??
-    (selectedMonth === currentMonthKey() ? todayISO() : monthRangeISO(selectedMonth).end);
+    (selectedMonth === currentMonthKey() ? today : monthRangeISO(selectedMonth).end);
+
+  // Deposits with terms: figures as of today, and an estimate to prefill the
+  // snapshot with when that month has nothing saved for them yet.
+  const depositRows: DepositRow[] = accounts.flatMap((a) => {
+    if (!isDepositType(a.type)) return [];
+    const terms = depositTermsOf(a);
+    return [
+      {
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        currency: a.currency,
+        terms,
+        summary: terms ? summarizeDeposit(terms, today) : null,
+      },
+    ];
+  });
 
   const snapshotBadge = (
     <span
@@ -142,6 +162,11 @@ export default async function WealthPage({
         <a href="#overview" className="rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow">
           Overview
         </a>
+        {depositRows.length > 0 ? (
+          <a href="#deposits" className="rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow">
+            Deposits
+          </a>
+        ) : null}
         <a href="#portfolio" className="rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow">
           Portfolio
         </a>
@@ -203,6 +228,12 @@ export default async function WealthPage({
             ) : null}
           </Card>
         </div>
+
+        {depositRows.length > 0 ? (
+          <div id="deposits" className="scroll-mt-48 md:scroll-mt-24">
+            <DepositsCard rows={depositRows} />
+          </div>
+        ) : null}
 
         <div id="portfolio" className="scroll-mt-48 space-y-4 md:scroll-mt-24">
           {allocationByCurrency.length > 0 ? (
@@ -269,8 +300,12 @@ export default async function WealthPage({
                   {accounts.map((saving) => {
                     const saved = selectedByAccount.get(saving.id);
                     const latest = latestByAccount.get(saving.id);
-                    const investedValue = saved?.investedAmount ?? latest?.investedAmount ?? saving.balance;
-                    const currentValue = saved?.currentValue ?? latest?.currentValue ?? saving.balance;
+                    const terms = saved ? null : depositTermsOf(saving);
+                    const estimate = terms ? summarizeDeposit(terms, defaultSnapshotDate) : null;
+                    const investedValue =
+                      saved?.investedAmount ?? estimate?.deposited.toFixed(2) ?? latest?.investedAmount ?? saving.balance;
+                    const currentValue =
+                      saved?.currentValue ?? estimate?.valueNow.toFixed(2) ?? latest?.currentValue ?? saving.balance;
                     return (
                       <div
                         key={saving.id}

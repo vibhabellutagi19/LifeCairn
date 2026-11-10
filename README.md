@@ -20,7 +20,7 @@ Requires Node.js and Docker Desktop (for local Postgres).
 ```bash
 npm install
 npm run docker:up      # starts Postgres in Docker (localhost:5433)
-npm run db:push        # creates the schema
+npm run db:migrate     # creates the schema from drizzle/
 npm run db:seed        # loads your Career/Money/Health/Relationship roadmap + accounts (skips if data already exists)
 npm run db:seed-projects  # imports Move & NimmaVasti (projects/releases/tasks) from your spreadsheet (skips if data already exists)
 npm run dev
@@ -40,7 +40,8 @@ Stop Postgres when you're done: `npm run docker:down` (your data persists in a D
 ## Useful scripts
 
 - `npm run db:studio` — opens Drizzle Studio, a GUI for browsing/editing the database directly.
-- `npm run db:push` — re-syncs the database schema after you edit `src/db/schema.ts`.
+- `npm run db:generate` — after editing `src/db/schema.ts`, writes a new migration in `drizzle/` (commit it); `npm run db:migrate` applies it.
+- `npm run db:baseline` — one-off for a database made with `db:push` before migrations existed: marks the baseline as applied (checks first), then run `db:migrate`.
 
 ## Deploying to EC2
 

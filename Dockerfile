@@ -15,8 +15,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY drizzle.config.ts ./
-COPY src/db/schema.ts ./src/db/schema.ts
-CMD ["npm", "run", "db:push"]
+COPY drizzle ./drizzle
+COPY src/db/schema.ts src/db/baseline.ts ./src/db/
+# Applies any new files in drizzle/. `run --rm tools npm run db:baseline` is the
+# one-off for a database created with db:push before migrations existed.
+CMD ["npm", "run", "db:migrate"]
 
 FROM dependencies AS build
 COPY . .

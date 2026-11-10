@@ -184,7 +184,7 @@ sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d db
 sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm tools
 ```
 
-This creates a new, empty database. Existing local data needs a separate export/import.
+This applies every migration in `drizzle/` to a new, empty database. Existing local data needs a separate export/import.
 
 ## 9. Start the app
 
@@ -228,13 +228,26 @@ aws ecr get-login-password --region "$AWS_REGION" \
   | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
 sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools pull app tools
 
-# only if the schema changed (back up first):
+# apply new database migrations, if any (back up first; does nothing when up to date):
 sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm tools
 
 sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build app
 ```
 
 Rollback: set the previous `APP_IMAGE` and `TOOLS_IMAGE` and recreate the app. This does not undo database changes.
+
+### Database migrations
+
+Schema changes are versioned SQL files in `drizzle/`, made on your computer with `npm run db:generate` after editing `src/db/schema.ts`, and committed. The tools image applies the new ones (`drizzle-kit migrate`); each file runs once and is recorded in the `drizzle.__drizzle_migrations` table.
+
+**One-off for a database created before migrations existed** (it was set up with `db:push`): mark the baseline as applied, then migrate. The baseline step checks that every table and column is already there and refuses otherwise, so nothing is overwritten.
+
+```bash
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm tools npm run db:baseline
+sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml --profile tools run --rm tools
+```
+
+If the baseline step lists missing columns, the database is behind `0000_baseline.sql`: run `npm run db:push` once (`run --rm tools npm run db:push`, answer **no** to any truncate prompt), then the two commands above.
 
 ## 12. Manifestation on the same instance
 
@@ -320,7 +333,7 @@ Lets each user log expenses and income, tick habits and change project task stat
    sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build app
    ```
 
-4. Make sure the `telegram_links` and `telegram_link_codes` tables exist (run the tools image / `db:push` as for any schema change).
+4. Make sure the `telegram_links` and `telegram_link_codes` tables exist (run the tools image as for any schema change).
 5. On your computer, point the bot at the app (run once, and again if the domain or secret changes):
 
    ```bash

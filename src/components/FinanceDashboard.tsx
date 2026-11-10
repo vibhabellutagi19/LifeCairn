@@ -248,6 +248,7 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
 
 const TYPE_LABEL: Record<string, string> = {
   fd: "Fixed deposits",
+  rd: "Recurring deposits",
   mutual_fund: "Mutual funds",
   stocks: "Stocks",
   bank: "Bank",
