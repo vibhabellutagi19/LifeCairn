@@ -18,7 +18,7 @@ Requires Node.js and Docker Desktop (for local Postgres).
 
 ```bash
 npm install
-npm run docker:up      # starts Postgres in Docker (localhost:5432)
+npm run docker:up      # starts Postgres in Docker (localhost:5433)
 npm run db:push        # creates the schema
 npm run db:seed        # loads your Career/Money/Health/Relationship roadmap + accounts (skips if data already exists)
 npm run db:seed-projects  # imports Move & NimmaVasti (projects/releases/tasks) from your spreadsheet (skips if data already exists)
