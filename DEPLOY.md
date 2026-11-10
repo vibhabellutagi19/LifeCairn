@@ -307,3 +307,25 @@ Copy dumps off the instance (for example to S3). **Never run `docker compose dow
 | Pull hangs | Instance lacks outbound internet or HTTPS egress |
 | Push fails from your computer | Your AWS identity lacks ECR push permissions |
 | No certificate | Check DNS A record and that ports 80/443 are open in the security group |
+
+## Telegram bot (optional)
+
+Lets each user log expenses and income, tick habits and change project task status from Telegram. Users link their own chat from **Profile → Telegram**; a chat only ever reaches the account it is linked to.
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot` and follow the prompts. Copy the **token** and the bot's **username** (without `@`).
+2. Generate a webhook secret: `openssl rand -hex 32`.
+3. On EC2, add `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` to `deploy/ec2.env`, then restart the app:
+
+   ```bash
+   sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build app
+   ```
+
+4. Make sure the `telegram_links` and `telegram_link_codes` tables exist (run the tools image / `db:push` as for any schema change).
+5. On your computer, point the bot at the app (run once, and again if the domain or secret changes):
+
+   ```bash
+   TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... APP_URL=https://lifecairn.example.com npm run telegram:webhook
+   ```
+
+Telegram sends the secret in the `X-Telegram-Bot-Api-Secret-Token` header; `/api/telegram` rejects any request without it. Dates use the server's clock, so set the container's `TZ` if "today" should follow your time zone.
+

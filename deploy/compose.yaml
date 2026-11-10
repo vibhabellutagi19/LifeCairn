@@ -10,6 +10,10 @@ services:
       NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
       NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
       MANIFESTATION_APP_URL: https://${MANIFESTATION_SITE_ADDRESS:?Set the Manifestation domain}
+      # Optional Telegram bot (see DEPLOY.md); leave empty to switch it off.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
     depends_on:
       db:
         condition: service_healthy

@@ -462,3 +462,21 @@ export const financeShares = pgTable(
   },
   (table) => [unique().on(table.circleId, table.ownerId)]
 );
+
+// A Telegram chat linked to a user, so the bot can log entries for them.
+// One chat per user and one user per chat.
+export const telegramLinks = pgTable("telegram_links", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
+  chatId: varchar("chat_id", { length: 32 }).notNull().unique(),
+  telegramUsername: varchar("telegram_username", { length: 64 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Short-lived one-time codes, created on Profile and sent to the bot as
+// "/start <code>" to link a chat. Deleted once used.
+export const telegramLinkCodes = pgTable("telegram_link_codes", {
+  code: varchar("code", { length: 32 }).primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+  expiresAt: timestamp("expires_at").notNull(),
+});

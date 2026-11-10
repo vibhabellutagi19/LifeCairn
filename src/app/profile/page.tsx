@@ -1,4 +1,8 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { telegramLinks } from "@/db/schema";
 import { PageHeader } from "@/components/ui";
+import { TelegramLink } from "@/components/TelegramLink";
 import { NicknameForm } from "@/components/NicknameForm";
 import { ModuleToggles } from "@/components/ModuleToggles";
 import { requireUserId } from "@/lib/auth";
@@ -14,10 +18,11 @@ export default async function ProfilePage({
   searchParams: Promise<{ off?: string }>;
 }) {
   const userId = await requireUserId();
-  const [nickname, disabledModules, { off }] = await Promise.all([
+  const [nickname, disabledModules, { off }, telegram] = await Promise.all([
     getNickname(userId),
     getDisabledModules(userId),
     searchParams,
+    db.query.telegramLinks.findFirst({ where: eq(telegramLinks.userId, userId) }),
   ]);
   const offModule = MODULES.find((m) => m.key === off && disabledModules.includes(m.key));
 
@@ -31,6 +36,10 @@ export default async function ProfilePage({
       ) : null}
       <NicknameForm nickname={nickname} variant="profile" />
       <ModuleToggles disabledModules={disabledModules} />
+      <TelegramLink
+        linkedAs={telegram ? (telegram.telegramUsername ?? "") : null}
+        configured={Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_USERNAME)}
+      />
     </div>
   );
 }
