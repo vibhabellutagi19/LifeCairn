@@ -6,6 +6,7 @@ import { createTelegramLinkCode, unlinkTelegram } from "@/lib/actions/telegram";
 
 const COMMANDS: [string, string][] = [
   ["/e 12.50 Lidl food #trip", "log an expense"],
+  ["/e 8 coffee yesterday", "add a date: yesterday, 3d, mon, 3/11 or 2026-11-03"],
   ["/i 3200 salary", "log income"],
   ["/h", "tick today's habits"],
   ["/t", "update a project task"],

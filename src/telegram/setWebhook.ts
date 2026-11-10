@@ -32,7 +32,7 @@ async function main() {
   });
   await call("setMyCommands", {
     commands: [
-      { command: "e", description: "Log an expense: /e 12.50 Lidl food #tag" },
+      { command: "e", description: "Log an expense: /e 12.50 Lidl food #tag 3/11" },
       { command: "i", description: "Log income: /i 3200 salary" },
       { command: "h", description: "Tick today's habits" },
       { command: "t", description: "Update a project task's status" },

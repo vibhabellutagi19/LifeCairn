@@ -10,7 +10,7 @@ import {
   telegramLinkCodes,
   telegramLinks,
 } from "@/db/schema";
-import { currentMonthKey, monthRangeISO, shiftDateISO, todayISO } from "@/lib/dates";
+import { currentMonthKey, monthRangeISO, todayISO } from "@/lib/dates";
 import { EXPENSE_CATEGORIES } from "@/lib/financeCategories";
 import { formatDateShort, formatEUR } from "@/lib/format";
 import { getDisabledModules } from "@/lib/moduleSettings";
@@ -53,7 +53,8 @@ const HELP = [
   "<b>LifeCairn bot</b>",
   "",
   "<b>/e</b> 12.50 Lidl food #trip — log an expense",
-  "   category and #tags are optional; add <i>yesterday</i> for yesterday",
+  "   category, #tags and a date are optional",
+  "   dates: <i>yesterday</i>, <i>3d</i> (3 days ago), <i>mon</i>, <i>3/11</i>, <i>2026-11-03</i>",
   "<b>/i</b> 3200 salary — log income",
   "<b>/h</b> — tick today's habits",
   "<b>/t</b> — update a project task's status",
@@ -156,7 +157,7 @@ async function logEntry(chatId: string, userId: string, kind: "expense" | "incom
     await sendMessage(chatId, `${parsed.error} Try: <b>${kind === "expense" ? "/e 12.50 Lidl" : "/i 3200 salary"}</b>`);
     return;
   }
-  const { amount, source, category, guessed, tags, dayOffset } = parsed.entry;
+  const { amount, source, category, guessed, tags, date } = parsed.entry;
   const [entry] = await db
     .insert(financeEntries)
     .values({
@@ -166,7 +167,7 @@ async function logEntry(chatId: string, userId: string, kind: "expense" | "incom
       source,
       category: kind === "expense" ? (category ?? "Other") : "Other",
       tags,
-      date: shiftDateISO(todayISO(), dayOffset),
+      date,
     })
     .returning();
   revalidateFinance();
