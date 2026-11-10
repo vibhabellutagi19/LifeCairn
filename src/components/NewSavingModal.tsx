@@ -87,17 +87,28 @@ export function NewSavingModal() {
                 <option value="other">Other</option>
               </Select>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-wide" htmlFor={`${titleId}-balance`}>
-                Current value (₹)
-              </label>
-              <Input
-                id={`${titleId}-balance`}
-                name="balance"
-                placeholder="0"
-                inputMode="decimal"
-                required
-              />
+            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wide" htmlFor={`${titleId}-balance`}>
+                  Current value
+                </label>
+                <Input
+                  id={`${titleId}-balance`}
+                  name="balance"
+                  placeholder="0"
+                  inputMode="decimal"
+                  required
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wide" htmlFor={`${titleId}-currency`}>
+                  Currency
+                </label>
+                <Select id={`${titleId}-currency`} name="currency" defaultValue="INR">
+                  <option value="INR">₹ INR</option>
+                  <option value="EUR">€ EUR</option>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>

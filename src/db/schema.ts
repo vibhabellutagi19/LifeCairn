@@ -102,6 +102,7 @@ export const financeAccounts = pgTable("finance_accounts", {
   name: varchar("name", { length: 200 }).notNull(),
   type: financeAccountType("type").notNull().default("other"),
   balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
+  currency: varchar("currency", { length: 3 }).notNull().default("INR"), // "INR" | "EUR"
   notes: text("notes"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

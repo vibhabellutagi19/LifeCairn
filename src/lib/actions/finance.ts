@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { isExpenseCategory, parseTags } from "@/lib/financeCategories";
 import { requireUserId } from "@/lib/auth";
+import { isCurrency } from "@/lib/format";
 
 function revalidateAll() {
   revalidatePath("/finance");
@@ -34,12 +35,15 @@ export async function createSaving(formData: FormData) {
   const balanceRaw = String(formData.get("balance") || "").replaceAll(",", "").trim();
   const balance = Number(balanceRaw);
   if (!balanceRaw || !Number.isFinite(balance) || balance < 0) return;
+  const currency = String(formData.get("currency") || "INR");
+  if (!isCurrency(currency)) return;
 
   await db.insert(financeAccounts).values({
     userId,
     name,
     type: typeRaw,
     balance: balance.toFixed(2),
+    currency,
   });
   revalidateAll();
 }
@@ -52,9 +56,11 @@ export async function updateSaving(id: number, formData: FormData) {
   if (!isSavingType(typeRaw)) return;
   const balance = Number(String(formData.get("balance") || "").replaceAll(",", "").trim());
   if (!Number.isFinite(balance) || balance < 0) return;
+  const currency = String(formData.get("currency") || "INR");
+  if (!isCurrency(currency)) return;
   await db
     .update(financeAccounts)
-    .set({ name, type: typeRaw, balance: balance.toFixed(2), updatedAt: new Date() })
+    .set({ name, type: typeRaw, balance: balance.toFixed(2), currency, updatedAt: new Date() })
     .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
   revalidateAll();
 }
@@ -97,7 +103,7 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
     accountType: account.type,
     investedAmount: amountFromForm(formData, `invested-${account.id}`),
     currentValue: amountFromForm(formData, `current-${account.id}`),
-    currency: /\bEUR\b/i.test(account.name) ? "EUR" : "INR",
+    currency: account.currency,
     sortOrder: index,
   }));
 

@@ -2,6 +2,7 @@ import { and, eq, gte, lte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { circleMembers, financeAccounts, financeEntries, financeShares } from "@/db/schema";
 import { currentMonthKey, monthRangeISO } from "@/lib/dates";
+import { sumByCurrency, type CurrencyTotals } from "@/lib/format";
 
 export type FinanceLevel = "summary" | "accounts";
 
@@ -12,11 +13,11 @@ export function isFinanceLevel(value: unknown): value is FinanceLevel {
 export type SharedFinance = {
   ownerId: string;
   level: FinanceLevel;
-  totalSavings: number;
+  totalSavings: CurrencyTotals;
   monthIncome: number;
   monthExpense: number;
   /** "accounts" level only. Names, types and balances; never notes. */
-  accounts?: { name: string; type: string; balance: number }[];
+  accounts?: { name: string; type: string; balance: number; currency: string }[];
 };
 
 /**
@@ -44,6 +45,7 @@ export async function getCircleFinance(circleId: number, viewerId: string): Prom
         name: financeAccounts.name,
         type: financeAccounts.type,
         balance: financeAccounts.balance,
+        currency: financeAccounts.currency,
       })
       .from(financeAccounts)
       .where(inArray(financeAccounts.userId, owners))
@@ -69,11 +71,22 @@ export async function getCircleFinance(circleId: number, viewerId: string): Prom
         ownerId: share.ownerId,
         level,
         // Same rule as the dashboard: the emergency fund ("cash") isn't counted as savings.
-        totalSavings: mine.filter((a) => a.type !== "cash").reduce((sum, a) => sum + Number(a.balance), 0),
+        totalSavings: sumByCurrency(
+          mine.filter((a) => a.type !== "cash"),
+          (a) => a.balance,
+          (a) => a.currency
+        ),
         monthIncome: total("income"),
         monthExpense: total("expense"),
         ...(level === "accounts"
-          ? { accounts: mine.map((a) => ({ name: a.name, type: a.type, balance: Number(a.balance) })) }
+          ? {
+              accounts: mine.map((a) => ({
+                name: a.name,
+                type: a.type,
+                balance: Number(a.balance),
+                currency: a.currency,
+              })),
+            }
           : {}),
       };
     })

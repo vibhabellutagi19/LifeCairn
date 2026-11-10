@@ -7,7 +7,7 @@ import { getCircleFinance } from "@/lib/circleFinance";
 import { getCircleHabits } from "@/lib/circleHabits";
 import { loadCircleView } from "@/lib/circleView";
 import { ROLE_LABEL } from "@/lib/circleTypes";
-import { formatEUR, formatINR } from "@/lib/format";
+import { formatCurrencyTotals, formatEUR, formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -225,14 +225,14 @@ export default async function CircleOverviewPage({ params }: { params: Promise<{
                                     {f.accounts.map((a, i) => (
                                       <li key={`${a.name}-${i}`} className="flex justify-between gap-3">
                                         <span className="truncate font-semibold">{a.name}</span>
-                                        <span className="shrink-0 font-bold">{formatINR(a.balance)}</span>
+                                        <span className="shrink-0 font-bold">{formatMoney(a.balance, a.currency)}</span>
                                       </li>
                                     ))}
                                   </ul>
                                 </details>
                               ) : null}
                             </th>
-                            <td className="px-4 py-3 text-right font-bold">{formatINR(f.totalSavings)}</td>
+                            <td className="px-4 py-3 text-right font-bold">{formatCurrencyTotals(f.totalSavings)}</td>
                             <td className="px-4 py-3 text-right font-bold text-green">{formatEUR(f.monthIncome)}</td>
                             <td className="px-4 py-3 text-right font-bold text-pink">{formatEUR(f.monthExpense)}</td>
                             <td className={clsx("px-4 py-3 text-right font-bold", net < 0 && "text-pink")}>
@@ -247,7 +247,12 @@ export default async function CircleOverviewPage({ params }: { params: Promise<{
                         <tr className="bg-yellow/40 font-bold">
                           <th scope="row" className="px-4 py-3 text-left">Together</th>
                           <td className="px-4 py-3 text-right">
-                            {formatINR(financeBoard.reduce((s, f) => s + f.totalSavings, 0))}
+                            {formatCurrencyTotals(
+                              financeBoard.reduce(
+                                (sum, f) => ({ INR: sum.INR + f.totalSavings.INR, EUR: sum.EUR + f.totalSavings.EUR }),
+                                { INR: 0, EUR: 0 }
+                              )
+                            )}
                           </td>
                           <td className="px-4 py-3 text-right text-green">
                             {formatEUR(financeBoard.reduce((s, f) => s + f.monthIncome, 0))}
