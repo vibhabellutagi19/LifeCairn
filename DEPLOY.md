@@ -217,6 +217,21 @@ Caddy obtains and renews the certificate automatically once DNS and ports 80/443
 
 ## 11. Deploy updates
 
+**The one command** (from your computer, after committing and pushing to `main`):
+
+```bash
+cp deploy/deploy.env.example deploy/deploy.env   # once: fill in EC2_HOST, SSH_KEY, AWS_REGION, the pk_live key
+bash deploy/deploy.sh
+```
+
+It refuses to run with uncommitted or unpushed changes, then builds and pushes new images (tagged `<time>-<commit>`), and on the instance: pulls the code, frees disk space if under 3 GB, backs up the database to `~/backups` (keeps the last 10), puts the new tags in `deploy/ec2.env` (the old file is kept as `ec2.env.previous`), pulls the images, applies migrations (marking the baseline first on a pre-migrations database), restarts the app and checks that it answers. If the pull or a migration fails, the running app is left on the previous version. It prints the roll-back command at the end:
+
+```bash
+bash deploy/deploy.sh --tag 20261111T150000Z-abc1234   # deploy images already in ECR, without building
+```
+
+The manual steps below do the same by hand.
+
 On your computer: `bash deploy/push-ecr.sh` (new tag each time). Then on EC2:
 
 ```bash
