@@ -22,12 +22,17 @@ export function SavingAccountControls({
   type,
   balance,
   currency,
+  termsHref,
+  hasTerms = false,
 }: {
   id: number;
   name: string;
   type: string;
   balance: string;
   currency: string;
+  /** FD/RD only: where its rate and dates are edited (the Deposits card). */
+  termsHref?: string;
+  hasTerms?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [nameValue, setNameValue] = useState(name);
@@ -58,6 +63,16 @@ export function SavingAccountControls({
         >
           Edit
         </button>
+        {termsHref ? (
+          <a
+            href={termsHref}
+            className={`shrink-0 text-[11px] font-bold uppercase tracking-wide hover:underline ${
+              hasTerms ? "text-blue" : "rounded-full bg-blue px-2 py-0.5 text-white"
+            }`}
+          >
+            {hasTerms ? "Terms" : "Add terms"}
+          </a>
+        ) : null}
         <button
           type="button"
           aria-label={`Delete ${name}`}

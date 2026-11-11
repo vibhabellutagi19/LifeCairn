@@ -329,6 +329,8 @@ export default async function WealthPage({
                             type={saving.type}
                             balance={saving.balance}
                             currency={saving.currency}
+                            termsHref={isDepositType(saving.type) ? `#deposit-${saving.id}` : undefined}
+                            hasTerms={depositTermsOf(saving) !== null}
                           />
                         </div>
                         <label>

@@ -159,8 +159,8 @@ function DepositItem({ row }: { row: DepositRow }) {
     : null;
 
   return (
-    <li>
-      <details className="group/dep">
+    <li id={`deposit-${row.id}`} className="scroll-mt-48 md:scroll-mt-24">
+      <details className="group/dep" open={!terms}>
         <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-3 hover:bg-background sm:px-4 [&::-webkit-details-marker]:hidden">
           <div className="min-w-0 flex-1">
             <p className="flex min-w-0 items-center gap-1.5">
