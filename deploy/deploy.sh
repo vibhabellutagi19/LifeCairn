@@ -33,7 +33,11 @@ set -a
 set +a
 : "${EC2_HOST:?Set EC2_HOST in deploy/deploy.env}"
 : "${AWS_REGION:?Set AWS_REGION in deploy/deploy.env}"
-REMOTE_DIR="${REMOTE_DIR:-~/lifecairn}"
+REMOTE_DIR="${REMOTE_DIR:-lifecairn}"
+# A "~/…" in deploy.env is expanded to THIS computer's home when the file is
+# loaded; turn it back into a path relative to the server user's home.
+REMOTE_DIR="${REMOTE_DIR#"$HOME"/}"
+REMOTE_DIR="${REMOTE_DIR#\~/}"
 SSH_KEY="${SSH_KEY:-}"
 SSH_KEY="${SSH_KEY/#\~/$HOME}"
 SSH=(ssh -o ServerAliveInterval=30)

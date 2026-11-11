@@ -12,6 +12,8 @@ TOOLS_IMAGE="${3:?tools image}"
 AWS_REGION="${4:?aws region}"
 REGISTRY="${APP_IMAGE%%/*}"
 REMOTE_DIR="${REMOTE_DIR/#\~/$HOME}"
+# A relative path is relative to this (the server) user's home.
+[[ "$REMOTE_DIR" = /* ]] || REMOTE_DIR="$HOME/$REMOTE_DIR"
 BACKUP_DIR="$HOME/backups"
 KEEP_BACKUPS=10
 
