@@ -60,6 +60,16 @@ REPOSITORY_URI=$(aws ecr describe-repositories --region "$AWS_REGION" --reposito
 
 if [ -z "$TAG" ]; then
   : "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY in deploy/deploy.env}"
+  [[ "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" =~ ^pk_(live|test)_[A-Za-z0-9+/=_-]{10,}$ ]] \
+    || fail "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY in deploy/deploy.env isn't a real key (still the placeholder?)."
+  # The key is baked into the image, so it must be the one the server pairs with
+  # its CLERK_SECRET_KEY. (A publishable key is public; comparing it is safe.)
+  remote_dir_q="$REMOTE_DIR"
+  [[ "$remote_dir_q" = /* ]] || remote_dir_q="\$HOME/$remote_dir_q"
+  server_pk=$("${SSH[@]}" "$EC2_HOST" "grep -E '^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=' \"$remote_dir_q/deploy/ec2.env\" | cut -d= -f2-" </dev/null || true)
+  [ -n "$server_pk" ] || fail "Couldn't read NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY from deploy/ec2.env on the server."
+  [ "$server_pk" = "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ] \
+    || fail "The Clerk publishable key in deploy/deploy.env differs from the one in ec2.env on the server. Use the server's (it matches its CLERK_SECRET_KEY)."
   TAG="$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)"
   step "Building and pushing images $TAG (takes a few minutes)"
   IMAGE_TAG="$TAG" bash deploy/push-ecr.sh
