@@ -91,7 +91,7 @@ step "Restarting the app"
 step "Checking it answers"
 ok=""
 for _ in $(seq 1 30); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/sign-in || true)
+  code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:3000/sign-in </dev/null || true)
   if [[ "$code" =~ ^(200|307|308)$ ]]; then ok=1; break; fi
   sleep 2
 done
