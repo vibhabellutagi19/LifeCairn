@@ -51,11 +51,11 @@ export function RecurringEntries({
     });
 
   return (
-    <div>
+    <div className="@container">
       <CardHeader
         className="mb-3"
         title="Regulars"
-        description={`Rent, salary, subscriptions: add ${monthLabel}'s in one tap.`}
+        description="Rent, salary, subscriptions: added in one tap each month."
         action={
           due.length > 0 ? (
             <Button type="button" size="sm" variant="primary" disabled={isPending} onClick={() => add(due.map((i) => i.id))}>
@@ -78,7 +78,7 @@ export function RecurringEntries({
       {items.length > 0 ? (
         <ul className="brut-border divide-y divide-ink/10 overflow-hidden rounded-md bg-surface">
           {items.map((item) => (
-            <li key={item.id} className="flex items-center gap-3 px-3 py-2">
+            <li key={item.id} className="flex items-center gap-2 py-1.5 pl-3 pr-1 @md:gap-3">
               <span
                 className={clsx(
                   "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
@@ -103,7 +103,7 @@ export function RecurringEntries({
                   type="button"
                   disabled={isPending}
                   onClick={() => add([item.id])}
-                  className="shrink-0 rounded-md px-2 py-1 text-[11px] font-bold uppercase text-blue hover:bg-background disabled:opacity-50"
+                  className="flex min-h-9 shrink-0 items-center rounded-md px-2 text-[11px] font-bold uppercase text-blue hover:bg-background disabled:opacity-50"
                 >
                   Add
                 </button>
@@ -116,7 +116,7 @@ export function RecurringEntries({
                   if (!confirm(`Remove “${item.source}” from your regulars? Entries already added stay.`)) return;
                   startTransition(() => deleteRecurring(item.id));
                 }}
-                className="flex h-8 w-8 shrink-0 items-center justify-center text-muted hover:text-pink disabled:opacity-50"
+                className="flex h-9 w-9 shrink-0 items-center justify-center text-muted hover:text-pink disabled:opacity-50"
               >
                 ✕
               </button>
@@ -131,7 +131,7 @@ export function RecurringEntries({
 
       {formOpen ? (
         <form
-          className="brut-border mt-2 grid grid-cols-2 gap-2 rounded-md bg-background p-3 sm:grid-cols-[auto_minmax(0,1fr)_7rem_9rem_5rem_auto]"
+          className="brut-border mt-2 grid grid-cols-2 gap-2 rounded-md bg-background p-3 @2xl:grid-cols-[auto_minmax(0,1fr)_7rem_9rem_6rem_auto] @2xl:items-center"
           onSubmit={(event) => {
             event.preventDefault();
             const form = event.currentTarget;
@@ -149,7 +149,7 @@ export function RecurringEntries({
           }}
         >
           <input type="hidden" name="type" value={type} />
-          <div className="col-span-2 flex overflow-hidden rounded-md border-2 border-ink sm:col-span-1" role="group" aria-label="Type">
+          <div className="col-span-2 flex overflow-hidden rounded-md border-2 border-ink @2xl:col-span-1" role="group" aria-label="Type">
             {(["expense", "income"] as const).map((t) => (
               <button
                 key={t}
@@ -165,7 +165,7 @@ export function RecurringEntries({
               </button>
             ))}
           </div>
-          <Input name="source" placeholder={type === "income" ? "e.g. Salary" : "e.g. Rent"} aria-label="Name" className="col-span-2 sm:col-span-1" required />
+          <Input name="source" placeholder={type === "income" ? "e.g. Salary" : "e.g. Rent"} aria-label="Name" className="col-span-2 @2xl:col-span-1" required />
           <Input name="amount" inputMode="decimal" placeholder="€ 0.00" aria-label="Amount" required />
           {type === "expense" ? (
             <Select name="category" aria-label="Category" defaultValue="Housing">
@@ -176,13 +176,13 @@ export function RecurringEntries({
               ))}
             </Select>
           ) : (
-            <span className="hidden sm:block" />
+            <span className="hidden @2xl:block" />
           )}
-          <label className="flex items-center gap-1 text-xs font-bold text-muted">
+          <label className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-muted">
             Day
-            <Input name="dayOfMonth" type="number" min={1} max={28} defaultValue={1} aria-label="Day of the month" className="min-w-0" />
+            <Input name="dayOfMonth" type="number" min={1} max={28} defaultValue={1} aria-label="Day of the month" className="w-16 min-w-0" />
           </label>
-          <div className="col-span-2 flex justify-end gap-2 sm:col-span-1">
+          <div className="flex items-center justify-end gap-2">
             {items.length > 0 ? (
               <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setFormOpen(false)}>
                 Cancel
