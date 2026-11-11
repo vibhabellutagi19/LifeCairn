@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
-import { PaceChart } from "@/components/PaceChart";
 import { FINANCE_PRIVACY_KEY, PrivacyBlur } from "@/components/PrivacyBlur";
 import { CardHeader } from "@/components/FinanceHeadings";
 import { IncomeTargetEditor } from "@/components/IncomeTargetEditor";
@@ -169,37 +168,6 @@ export function MonthReceipt({
   );
 }
 
-/** Cumulative spending through the month against income. */
-export function SpendingPace({
-  monthLabel,
-  daily,
-  uptoDay,
-  isCurrent,
-  income,
-}: {
-  monthLabel: string;
-  daily: number[];
-  uptoDay: number;
-  isCurrent: boolean;
-  income: number;
-}) {
-  return (
-    <Card>
-      <CardHeader
-        className="mb-2"
-        title="Spending pace"
-        description="What you've spent so far, day by day, against what came in."
-        action={
-          <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
-            {isCurrent ? `Day ${uptoDay} of ${daily.length}` : monthLabel}
-          </span>
-        }
-      />
-      <PaceChart daily={daily} income={income} uptoDay={uptoDay} monthLabel={monthLabel} />
-    </Card>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* Where the days went: a month calendar shaded by spending            */
 /* ------------------------------------------------------------------ */
@@ -214,6 +182,7 @@ const SPEND_STEPS = [
 ];
 const stepFor = (amount: number) => SPEND_STEPS.find((s) => amount < s.below) ?? SPEND_STEPS[SPEND_STEPS.length - 1];
 
+/** The calendar itself; shown inside DayViews, which provides the card and title. */
 export function SpendCalendar({
   month,
   daily,
@@ -239,12 +208,7 @@ export function SpendCalendar({
   const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", timeZone: "UTC" });
 
   return (
-    <Card className="brut-shadow">
-      <CardHeader
-        title="Where the days went"
-        description="Each day shaded by what you spent. Tap one to see its expenses."
-        className="mb-3"
-      />
+    <div>
       <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <span key={d} className="text-center font-display text-[11px] font-bold text-muted">
@@ -311,7 +275,7 @@ export function SpendCalendar({
           {noSpend > 0 ? <dd className="font-bold text-green">nice</dd> : null}
         </div>
       </dl>
-    </Card>
+    </div>
   );
 }
 

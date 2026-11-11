@@ -13,7 +13,9 @@ import {
 } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { CardHeader, SectionHeader } from "@/components/FinanceHeadings";
-import { MonthReceipt, SpendCalendar, SpendingPace, TrendBars, YearSummary, type MonthTrend } from "@/components/FinanceDashboard";
+import { MonthReceipt, SpendCalendar, TrendBars, YearSummary, type MonthTrend } from "@/components/FinanceDashboard";
+import { DayViews } from "@/components/DayViews";
+import { PaceChart } from "@/components/PaceChart";
 import { OneLineLog } from "@/components/OneLineLog";
 import { FinanceThumbBar } from "@/components/FinanceThumbBar";
 import { RecurringEntries, type RecurringItem } from "@/components/RecurringEntries";
@@ -385,20 +387,24 @@ export default async function FinancePage({
             ) : null}
             </Card>
             <div className="lg:col-start-2 lg:row-span-2 lg:row-start-2">
-              <SpendCalendar
-                month={selectedMonth}
-                daily={daily}
-                uptoDay={uptoDay}
-                activeDay={activeDay}
-                hrefFor={dayHref}
-                biggestDay={biggestDay}
+              <DayViews
+                calendar={
+                <SpendCalendar
+                  month={selectedMonth}
+                  daily={daily}
+                  uptoDay={uptoDay}
+                  activeDay={activeDay}
+                  hrefFor={dayHref}
+                  biggestDay={biggestDay}
+                />
+                }
+                pace={<PaceChart daily={daily} income={income} uptoDay={uptoDay} monthLabel={monthLabel} />}
               />
             </div>
             <Card className="lg:col-start-1 lg:row-start-2">
               <RecurringEntries month={selectedMonth} monthLabel={monthLabel} items={recurringItems} />
             </Card>
           </div>
-          <SpendingPace monthLabel={monthLabel} daily={daily} uptoDay={uptoDay} isCurrent={isCurrentMonth} income={income} />
           <TrendBars months={trendMonths} selectedMonth={selectedMonth} />
           <YearSummary year={year} months={yearMonths} selectedMonth={selectedMonth} />
         </div>
