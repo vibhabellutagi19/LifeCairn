@@ -41,7 +41,7 @@ fi
 step "Backing up the database"
 mkdir -p "$BACKUP_DIR"
 backup="$BACKUP_DIR/lifecairn-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
-sudo docker exec lifecairn-db-1 pg_dump -U lifecairn lifecairn --lock-wait-timeout=10s | gzip > "$backup"
+sudo docker exec lifecairn-db-1 pg_dump -U lifecairn lifecairn --lock-wait-timeout=10s </dev/null | gzip > "$backup"
 [ -s "$backup" ] || fail "Backup came out empty; nothing was changed."
 echo "Saved $backup ($(du -h "$backup" | cut -f1))"
 ls -1t "$BACKUP_DIR"/lifecairn-*.sql.gz 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f --
@@ -75,12 +75,12 @@ tracked=$(sudo docker exec lifecairn-db-1 psql -U lifecairn -d lifecairn -tAc \
   "select to_regclass('drizzle.__drizzle_migrations') is not null and exists (select 1 from drizzle.__drizzle_migrations)" 2>/dev/null || echo f)
 if [ "$tracked" != "t" ]; then
   echo "Migrations aren't tracked here yet: marking the baseline (it checks the schema first)."
-  if ! "${C[@]}" --profile tools run --rm tools npm run db:baseline; then
+  if ! "${C[@]}" --profile tools run --rm -T tools npm run db:baseline </dev/null; then
     cp deploy/ec2.env.previous deploy/ec2.env
     fail "The baseline check failed (see above); the app was not touched. Backup: $backup"
   fi
 fi
-if ! "${C[@]}" --profile tools run --rm tools; then
+if ! "${C[@]}" --profile tools run --rm -T tools </dev/null; then
   cp deploy/ec2.env.previous deploy/ec2.env
   fail "Migration failed; the app still runs the previous version. Backup: $backup"
 fi

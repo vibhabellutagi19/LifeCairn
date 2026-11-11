@@ -71,5 +71,8 @@ else
 fi
 
 step "Deploying on $EC2_HOST"
-"${SSH[@]}" "$EC2_HOST" bash -s -- "$REMOTE_DIR" "$REPOSITORY_URI:$TAG" "$REPOSITORY_URI:$TAG-tools" "$AWS_REGION" \
-  < deploy/remote-deploy.sh
+# Copy the server-side script over and run it from a file. (Streaming it on
+# stdin breaks: `docker compose run` reads stdin and swallows the rest of it.)
+REMOTE_SCRIPT="/tmp/lifecairn-remote-deploy-$TAG.sh"
+"${SSH[@]}" "$EC2_HOST" "cat > '$REMOTE_SCRIPT'" < deploy/remote-deploy.sh
+"${SSH[@]}" "$EC2_HOST" "bash '$REMOTE_SCRIPT' '$REMOTE_DIR' '$REPOSITORY_URI:$TAG' '$REPOSITORY_URI:$TAG-tools' '$AWS_REGION' </dev/null; status=\$?; rm -f '$REMOTE_SCRIPT'; exit \$status"
