@@ -31,56 +31,58 @@ export function FinanceEntryRow({
   const close = () => dialogRef.current?.close();
   const label = "mb-1 block text-xs font-bold uppercase tracking-wide";
 
+  const remove = () => {
+    if (!confirm(`Delete “${source}”?`)) return;
+    startTransition(async () => {
+      await deleteFinanceEntry(id);
+      close();
+    });
+  };
+
   return (
-    <div className="brut-border grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md bg-surface p-3 sm:grid-cols-[4rem_minmax(0,1fr)_auto_auto_auto]">
-      <span className="shrink-0 text-xs font-bold text-muted">{formatDateShort(date)}</span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate font-bold">{source}</p>
-          {type === "expense" && category ? (
-            <span className="rounded-full bg-yellow px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-              {category}
-            </span>
-          ) : null}
-        </div>
-        {tags.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {tags.map((tag) => (
-              <span key={tag} className="rounded-full bg-background px-2 py-0.5 text-[10px] font-bold text-blue">
-                #{tag}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {notes ? <p className="truncate text-xs text-muted">{notes}</p> : null}
-      </div>
-      <span
-        className={clsx(
-          "col-start-2 row-start-2 shrink-0 justify-self-start font-bold sm:col-start-3 sm:row-start-1 sm:justify-self-end",
-          type === "income" ? "text-green" : "text-pink"
-        )}
-      >
-        {type === "income" ? "+" : "-"}
-        {formatEUR(amount)}
-      </span>
+    <div className="brut-border flex items-stretch rounded-md bg-surface">
+      {/* The whole row opens the editor; on wider screens a quick delete sits beside it. */}
       <button
         type="button"
-        aria-label="Edit entry"
-        className="col-start-3 row-start-2 flex h-11 w-11 shrink-0 items-center justify-center text-xs font-bold uppercase text-blue hover:underline sm:col-start-4 sm:row-start-1 sm:h-auto sm:w-auto"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-3 text-left hover:bg-background"
         onClick={() => dialogRef.current?.showModal()}
       >
-        Edit
+        <span className="w-11 shrink-0 text-xs font-bold text-muted sm:w-14">{formatDateShort(date)}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-bold">{source}</span>
+            {type === "expense" && category ? (
+              <span className="hidden shrink-0 rounded-full bg-yellow px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:inline">
+                {category}
+              </span>
+            ) : null}
+          </span>
+          {(type === "expense" && category) || tags.length > 0 || notes ? (
+            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs">
+              {type === "expense" && category ? (
+                <span className="shrink-0 font-bold uppercase text-muted sm:hidden">{category}</span>
+              ) : null}
+              {tags.map((tag) => (
+                <span key={tag} className="shrink-0 font-bold text-blue">
+                  #{tag}
+                </span>
+              ))}
+              {notes ? <span className="truncate text-muted">{notes}</span> : null}
+            </span>
+          ) : null}
+        </span>
+        <span className={clsx("shrink-0 font-bold", type === "income" ? "text-green" : "text-pink")}>
+          {type === "income" ? "+" : "-"}
+          {formatEUR(amount)}
+        </span>
+        <span className="sr-only">, edit</span>
       </button>
       <button
         type="button"
-        aria-label="Delete entry"
+        aria-label={`Delete ${source}`}
         disabled={isPending}
-        className="col-start-3 row-start-1 flex h-11 w-11 shrink-0 items-center justify-center text-muted hover:text-pink sm:col-start-5 sm:h-auto sm:w-auto"
-        onClick={() =>
-          startTransition(() => {
-            deleteFinanceEntry(id);
-          })
-        }
+        className="hidden w-11 shrink-0 items-center justify-center text-muted hover:text-pink disabled:opacity-50 sm:flex"
+        onClick={remove}
       >
         ✕
       </button>
@@ -144,7 +146,10 @@ export function FinanceEntryRow({
               <label className={label}>Notes</label>
               <Input name="notes" defaultValue={notes ?? ""} />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" disabled={isPending} onClick={remove} className="mr-auto text-pink">
+                Delete
+              </Button>
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Cancel
               </Button>

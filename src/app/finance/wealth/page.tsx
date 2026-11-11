@@ -158,7 +158,18 @@ export default async function WealthPage({
         action={<NewSavingModal />}
       />
 
-      <FinanceMonthBar month={selectedMonth} path="/finance/wealth">
+      <FinanceMonthBar
+        month={selectedMonth}
+        path="/finance/wealth"
+        mobileAction={
+          <a
+            href="#snapshot"
+            className="brut-border brut-shadow-sm rounded-md bg-green px-3 py-2 text-xs font-bold uppercase tracking-wide text-white"
+          >
+            Update ↓
+          </a>
+        }
+      >
         <a href="#overview" className="rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow">
           Overview
         </a>
@@ -192,18 +203,18 @@ export default async function WealthPage({
               description={`From the ${monthLabel} snapshot. Emergency funds not included.`}
               action={snapshotBadge}
             />
-            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-              <div className="brut-border rounded-md bg-background p-4">
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-1 xl:grid-cols-3">
+              <div className="brut-border rounded-md bg-background p-3 sm:p-4">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Invested</dt>
-                <dd className="font-display text-xl font-bold">{formatCurrencyTotals(investedTotal)}</dd>
+                <dd className="font-display text-base font-bold sm:text-xl">{formatCurrencyTotals(investedTotal)}</dd>
               </div>
-              <div className="brut-border rounded-md bg-background p-4">
+              <div className="brut-border rounded-md bg-background p-3 sm:p-4">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Worth now</dt>
-                <dd className="font-display text-xl font-bold">{formatCurrencyTotals(currentValueTotal)}</dd>
+                <dd className="font-display text-base font-bold sm:text-xl">{formatCurrencyTotals(currentValueTotal)}</dd>
               </div>
-              <div className={`brut-border rounded-md p-4 ${gainPositive ? "bg-green/10" : "bg-pink/10"}`}>
+              <div className={`brut-border col-span-2 rounded-md p-3 sm:col-span-1 sm:p-4 lg:col-span-1 ${gainPositive ? "bg-green/10" : "bg-pink/10"}`}>
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Gain / loss</dt>
-                <dd className={`font-display text-xl font-bold ${gainPositive ? "text-green" : "text-pink"}`}>
+                <dd className={`font-display text-base font-bold sm:text-xl ${gainPositive ? "text-green" : "text-pink"}`}>
                   {formatSignedTotals(snapshotGain)}
                 </dd>
               </div>
@@ -309,9 +320,9 @@ export default async function WealthPage({
                     return (
                       <div
                         key={saving.id}
-                        className="brut-border grid grid-cols-1 gap-2 rounded-md bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_minmax(120px,180px)_minmax(120px,180px)] sm:items-center sm:gap-3"
+                        className="brut-border grid grid-cols-2 gap-2 rounded-md bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_minmax(120px,180px)_minmax(120px,180px)] sm:items-center sm:gap-3"
                       >
-                        <div className="min-w-0">
+                        <div className="col-span-2 min-w-0 sm:col-span-1">
                           <SavingAccountControls
                             id={saving.id}
                             name={saving.name}

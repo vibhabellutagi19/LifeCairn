@@ -188,7 +188,8 @@ export default async function FinancePage({
         title="Finance"
         subtitle="What came in, what went out, and what you've built up."
         action={
-          <div className="flex flex-wrap gap-2">
+          // Phones: income and expense side by side, bulk on its own row.
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:w-full sm:[&>button]:w-auto [&>button:nth-of-type(3)]:col-span-2">
             <FinanceEntryModal type="income" defaultDate={defaultEntryDate} />
             <FinanceEntryModal type="expense" defaultDate={defaultEntryDate} />
             <BulkExpenseModal defaultDate={defaultEntryDate} />
@@ -196,7 +197,18 @@ export default async function FinancePage({
         }
       />
 
-      <FinanceMonthBar month={selectedMonth} path="/finance">
+      <FinanceMonthBar
+        month={selectedMonth}
+        path="/finance"
+        mobileAction={
+          <Link
+            href={wealthHref}
+            className="brut-border brut-shadow-sm rounded-md bg-orange px-3 py-2 text-xs font-bold uppercase tracking-wide text-white"
+          >
+            Wealth →
+          </Link>
+        }
+      >
         <a href="#cash-flow" className={sectionLink}><span className="text-blue">01</span> Cash flow</a>
         <a href="#spending" className={sectionLink}><span className="text-pink">02</span> Spending</a>
         <Link
@@ -334,7 +346,7 @@ export default async function FinancePage({
                   {expenseEntries.length === 0 ? (
                     <EmptyState>No expenses logged for {monthLabel}.</EmptyState>
                   ) : (
-                    <div className="max-h-[640px] space-y-4 overflow-y-auto pr-1">
+                    <div className="space-y-4 lg:max-h-[640px] lg:overflow-y-auto lg:pr-1">
                       {expensesByDay.map(([day, rows]) => (
                         <div key={day}>
                           <div className="mb-1.5 flex items-baseline justify-between gap-3 px-1 text-xs font-bold uppercase tracking-wide text-muted">
@@ -372,7 +384,7 @@ export default async function FinancePage({
                   {incomeEntries.length === 0 ? (
                     <EmptyState>No income logged for {monthLabel}.</EmptyState>
                   ) : (
-                    <div className="max-h-[640px] space-y-2 overflow-y-auto pr-1">
+                    <div className="space-y-2 lg:max-h-[640px] lg:overflow-y-auto lg:pr-1">
                       {incomeEntries.map((entry) => (
                         <FinanceEntryRow
                           key={entry.id}

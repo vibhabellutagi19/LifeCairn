@@ -102,17 +102,17 @@ function Donut({
             );
           })}
         </svg>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-5 text-center sm:px-8">
           {focus ? (
             <>
               <span className="line-clamp-2 text-[11px] font-bold uppercase leading-tight text-muted">{focus.name}</span>
-              <span className="private-value font-display text-2xl font-bold">{fmtPct(share(focus.value, total))}</span>
+              <span className="private-value font-display text-lg font-bold sm:text-2xl">{fmtPct(share(focus.value, total))}</span>
               <span className="private-value text-xs font-bold">{compact(focus.value, currency)}</span>
             </>
           ) : (
             <>
               <span className="text-[11px] font-bold uppercase tracking-widest text-muted">Total</span>
-              <span className="private-value font-display text-xl font-bold">{compact(total, currency)}</span>
+              <span className="private-value font-display text-base font-bold sm:text-xl">{compact(total, currency)}</span>
             </>
           )}
         </div>
@@ -246,7 +246,8 @@ export function AllocationCharts({
         }
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)]">
+      {/* Phones: the two donuts side by side, the table under them. */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)]">
         <Donut
           title="Invested"
           slices={slicesFor(rows, (r) => r.invested, colorOf)}
@@ -263,7 +264,7 @@ export function AllocationCharts({
         />
 
         {/* The figures behind both donuts: every saving, shares side by side. */}
-        <div className="min-w-0 overflow-x-auto">
+        <div className="col-span-2 min-w-0 overflow-x-auto lg:col-span-1">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b-2 border-ink text-[10px] uppercase tracking-wide text-muted">

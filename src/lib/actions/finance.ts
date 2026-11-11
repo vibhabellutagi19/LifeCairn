@@ -129,7 +129,10 @@ export async function updateDepositTerms(id: number, formData: FormData) {
     where: and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)),
   });
   if (!account || !isDepositType(account.type)) return { ok: false as const, error: "Not a deposit." };
-  const terms = depositTermsFromForm(formData, account.type);
+  // The form can also switch the deposit between FD and RD.
+  const kindRaw = String(formData.get("depositKind") || account.type);
+  const kind = isDepositType(kindRaw) ? kindRaw : account.type;
+  const terms = depositTermsFromForm(formData, kind);
   if (!terms) {
     return {
       ok: false as const,
@@ -138,7 +141,7 @@ export async function updateDepositTerms(id: number, formData: FormData) {
   }
   await db
     .update(financeAccounts)
-    .set({ ...terms, updatedAt: new Date() })
+    .set({ ...terms, type: kind, updatedAt: new Date() })
     .where(and(eq(financeAccounts.id, id), eq(financeAccounts.userId, userId)));
   revalidateAll();
   return { ok: true as const };

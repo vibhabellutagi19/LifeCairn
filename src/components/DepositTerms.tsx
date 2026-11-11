@@ -1,9 +1,10 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import { clsx } from "clsx";
 import { Button, Input, Select } from "@/components/ui";
 import { updateDepositTerms } from "@/lib/actions/finance";
-import { INTEREST_PAYOUTS, PAYOUT_LABEL, type InterestPayout } from "@/lib/deposits";
+import { INTEREST_PAYOUTS, PAYOUT_LABEL, type DepositType, type InterestPayout } from "@/lib/deposits";
 
 export type DepositTermsValues = {
   amount: string;
@@ -15,28 +16,66 @@ export type DepositTermsValues = {
 
 const label = "mb-1 block text-xs font-bold uppercase tracking-wide";
 
-/** The deposit inputs, named as the server actions expect. Uncontrolled. */
+const KINDS: { value: DepositType; title: string; line: string }[] = [
+  { value: "fd", title: "Fixed deposit", line: "One lump sum" },
+  { value: "rd", title: "Recurring deposit", line: "Monthly deductions, interest at the end" },
+];
+
+/**
+ * The deposit inputs, named as the server actions expect. With `chooseKind`
+ * it also lets you pick FD or RD (sent as `depositKind`); otherwise the kind
+ * comes from the parent form's own type field.
+ */
 export function DepositTermsFields({
   type,
   initial,
   required = false,
+  chooseKind = false,
 }: {
-  type: "fd" | "rd";
+  type: DepositType;
   initial?: DepositTermsValues | null;
   required?: boolean;
+  chooseKind?: boolean;
 }) {
   const id = useId();
+  const [picked, setPicked] = useState<DepositType>(type);
+  const kind = chooseKind ? picked : type;
+  const isRD = kind === "rd";
+
   return (
     <div className="grid grid-cols-2 gap-3">
+      {chooseKind ? (
+        <fieldset className="col-span-2">
+          <legend className={label}>Kind</legend>
+          <input type="hidden" name="depositKind" value={kind} />
+          <div className="grid grid-cols-2 gap-2">
+            {KINDS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={kind === option.value}
+                onClick={() => setPicked(option.value)}
+                className={clsx(
+                  "brut-border rounded-md px-3 py-2 text-left",
+                  kind === option.value ? "brut-shadow-sm bg-yellow" : "bg-surface hover:bg-background"
+                )}
+              >
+                <span className="block text-sm font-bold">{option.title}</span>
+                <span className="block text-[11px] font-semibold leading-tight text-muted">{option.line}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
       <div>
         <label className={label} htmlFor={`${id}-amount`}>
-          {type === "rd" ? "Monthly instalment" : "Principal"}
+          {isRD ? "Deducted each month" : "Principal"}
         </label>
         <Input
           id={`${id}-amount`}
           name="depositAmount"
           inputMode="decimal"
-          placeholder={type === "rd" ? "5000" : "100000"}
+          placeholder={isRD ? "5000" : "100000"}
           defaultValue={initial?.amount}
           required={required}
         />
@@ -56,7 +95,7 @@ export function DepositTermsFields({
       </div>
       <div>
         <label className={label} htmlFor={`${id}-start`}>
-          Start date
+          {isRD ? "First deduction" : "Start date"}
         </label>
         <Input id={`${id}-start`} type="date" name="depositStart" defaultValue={initial?.start} required={required} />
       </div>
@@ -72,7 +111,12 @@ export function DepositTermsFields({
           required={required}
         />
       </div>
-      {type === "fd" ? (
+      {isRD ? (
+        <p className="col-span-2 text-xs font-semibold text-muted">
+          The same amount is deducted every month on the day of the first deduction. All the interest is paid at
+          maturity, together with what you put in.
+        </p>
+      ) : (
         <div className="col-span-2">
           <label className={label} htmlFor={`${id}-payout`}>
             Interest
@@ -85,16 +129,12 @@ export function DepositTermsFields({
             ))}
           </Select>
         </div>
-      ) : (
-        <p className="col-span-2 text-xs font-semibold text-muted">
-          An RD pays its interest at maturity, together with your instalments.
-        </p>
       )}
     </div>
   );
 }
 
-/** "Add terms" / "Edit terms" on a deposit row, expanding into the form. */
+/** The terms form inside an expanded deposit row. */
 export function DepositTermsEditor({
   id,
   name,
@@ -103,17 +143,17 @@ export function DepositTermsEditor({
 }: {
   id: number;
   name: string;
-  type: "fd" | "rd";
+  type: DepositType;
   initial: DepositTermsValues | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (!open) {
     return (
-      <Button type="button" size="sm" variant={initial ? "ghost" : "primary"} onClick={() => setOpen(true)}>
-        {initial ? "Edit terms" : "Add terms"}
+      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
+        Edit terms
       </Button>
     );
   }
@@ -121,7 +161,7 @@ export function DepositTermsEditor({
   return (
     <form
       aria-label={`Terms for ${name}`}
-      className="brut-border mt-3 w-full space-y-3 rounded-md bg-background p-3"
+      className="w-full space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
@@ -136,16 +176,18 @@ export function DepositTermsEditor({
         });
       }}
     >
-      <DepositTermsFields type={type} initial={initial} required />
+      <DepositTermsFields type={type} initial={initial} required chooseKind />
       {error ? (
         <p role="alert" className="text-sm font-bold text-pink">
           {error}
         </p>
       ) : null}
       <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
+        {initial ? (
+          <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        ) : null}
         <Button type="submit" size="sm" variant="green" disabled={isPending}>
           {isPending ? "Saving..." : "Save terms"}
         </Button>

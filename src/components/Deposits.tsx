@@ -1,5 +1,6 @@
 // The Wealth page's Deposits card. A server component: the figures come from
 // src/lib/deposits.ts; only the eye toggle and the terms editor are client-side.
+// One compact row per deposit; tap it to see the details and edit the terms.
 
 import { clsx } from "clsx";
 import { Card } from "@/components/ui";
@@ -17,6 +18,8 @@ export type DepositRow = {
   summary: DepositSummary | null;
 };
 
+type FullRow = DepositRow & { terms: DepositTerms; summary: DepositSummary };
+
 /** Window for the "maturing soon" total, in days. */
 const UPCOMING_DAYS = 90;
 
@@ -28,22 +31,21 @@ function formatRate(rate: number) {
   return `${rate.toFixed(2).replace(/\.?0+$/, "")}%`;
 }
 
-function StatusBadge({ summary, terms }: { summary: DepositSummary; terms: DepositTerms }) {
-  const base = "brut-border shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase";
-  switch (summary.status) {
-    case "matured":
-      return <span className={`${base} bg-yellow text-ink`}>Matured · renew or close</span>;
-    case "soon":
-      return (
-        <span className={`${base} bg-orange text-white`}>
-          {summary.daysLeft === 1 ? "Matures tomorrow" : `Matures in ${summary.daysLeft} days`}
-        </span>
-      );
-    case "upcoming":
-      return <span className={`${base} bg-background text-muted`}>Starts {formatDate(terms.start)}</span>;
-    default:
-      return null;
+function timeLeft(days: number) {
+  if (days <= 0) return "Matured";
+  if (days === 1) return "Tomorrow";
+  if (days < 60) return `${days} days`;
+  const months = Math.round(days / 30.4);
+  return months < 24 ? `${months} months` : `${(days / 365).toFixed(1).replace(/\.0$/, "")} years`;
+}
+
+/** One line under the name: what kind of deposit this is, in plain words. */
+function metaLine({ terms, summary, currency }: FullRow) {
+  const rate = formatRate(terms.rate);
+  if (terms.type === "rd") {
+    return `${formatMoney(terms.amount, currency)}/month · ${summary.instalmentsPaid} of ${summary.instalmentsTotal} paid · ${rate}`;
   }
+  return `${rate} · ${terms.payout === "maturity" ? "interest at maturity" : PAYOUT_LABEL[terms.payout].toLowerCase()}`;
 }
 
 function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
@@ -56,9 +58,96 @@ function Figure({ label, value, note }: { label: string; value: string; note?: s
   );
 }
 
-function DepositItem({ row }: { row: DepositRow }) {
+function Figures({ row }: { row: FullRow }) {
   const { terms, summary, currency } = row;
   const money = (value: number) => formatMoney(value, currency);
+  const interest = (
+    <Figure
+      label={terms.payout === "maturity" ? "Interest so far" : "Interest paid so far"}
+      value={money(summary.interestSoFar)}
+      note={`of ${money(summary.totalInterest)}`}
+    />
+  );
+  const matures = (
+    <Figure
+      label={summary.status === "matured" ? "Matured on" : "Matures"}
+      value={formatDate(terms.maturity)}
+      note={summary.status === "matured" ? "Renew or close it" : `in ${timeLeft(summary.daysLeft)}`}
+    />
+  );
+
+  if (terms.type === "rd") {
+    return (
+      <>
+        <Figure
+          label="Deducted monthly"
+          value={money(terms.amount)}
+          note={summary.nextInstalment ? `Next ${formatDate(summary.nextInstalment)}` : "All deductions done"}
+        />
+        <Figure
+          label="Paid in"
+          value={money(summary.deposited)}
+          note={`${summary.instalmentsPaid} of ${summary.instalmentsTotal} months`}
+        />
+        {interest}
+        <Figure label="At maturity" value={money(summary.maturityValue)} note={`on ${formatDate(terms.maturity)}`} />
+      </>
+    );
+  }
+  if (terms.payout === "maturity") {
+    return (
+      <>
+        <Figure label="Worth now" value={money(summary.valueNow)} note={`${money(terms.amount)} put in`} />
+        {interest}
+        <Figure label="At maturity" value={money(summary.maturityValue)} />
+        {matures}
+      </>
+    );
+  }
+  return (
+    <>
+      <Figure
+        label={terms.payout === "monthly" ? "Paid each month" : "Paid each quarter"}
+        value={money(summary.payoutAmount ?? 0)}
+        note={summary.nextPayout ? `Next ${formatDate(summary.nextPayout)}` : "No payouts left"}
+      />
+      {interest}
+      <Figure label="Principal" value={money(terms.amount)} note="Comes back at maturity" />
+      {matures}
+    </>
+  );
+}
+
+function StatusText({ summary }: { summary: DepositSummary }) {
+  if (summary.status === "matured") {
+    return <span className="rounded-full bg-yellow px-2 py-0.5 text-[10px] font-bold uppercase text-ink">Matured</span>;
+  }
+  if (summary.status === "soon") {
+    return (
+      <span className="rounded-full bg-orange px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+        {timeLeft(summary.daysLeft)}
+      </span>
+    );
+  }
+  if (summary.status === "upcoming") return <span className="text-[11px] font-semibold text-muted">Not started</span>;
+  return <span className="text-[11px] font-semibold text-muted">in {timeLeft(summary.daysLeft)}</span>;
+}
+
+function Chevron() {
+  return (
+    <span aria-hidden className="shrink-0 text-xs font-bold text-muted transition-transform group-open/dep:rotate-180">
+      ▼
+    </span>
+  );
+}
+
+function DepositItem({ row }: { row: DepositRow }) {
+  const { terms, summary } = row;
+  const kindChip = (
+    <span className="shrink-0 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted">
+      {row.type === "rd" ? "RD" : "FD"}
+    </span>
+  );
   const initial: DepositTermsValues | null = terms
     ? {
         amount: String(terms.amount),
@@ -70,97 +159,74 @@ function DepositItem({ row }: { row: DepositRow }) {
     : null;
 
   return (
-    <li className="brut-border rounded-md bg-surface p-3 sm:p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-bold" title={row.name}>
-              {row.name}
+    <li>
+      <details className="group/dep">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-3 hover:bg-background sm:px-4 [&::-webkit-details-marker]:hidden">
+          <div className="min-w-0 flex-1">
+            <p className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate font-bold">{row.name}</span>
+              {kindChip}
             </p>
-            <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-bold uppercase text-muted">
-              {row.type === "rd" ? "RD" : "FD"} · {currency}
+            <p className="truncate text-xs font-semibold text-muted">
+              {terms && summary ? metaLine(row as FullRow) : "No rate or dates yet"}
+            </p>
+            {summary ? (
+              <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-background" aria-hidden>
+                <span
+                  className={clsx("block h-full rounded-full", summary.status === "matured" ? "bg-green" : "bg-orange")}
+                  style={{ width: `${Math.max(2, summary.elapsed * 100)}%` }}
+                />
+              </span>
+            ) : null}
+          </div>
+          {terms && summary ? (
+            <div className="shrink-0 text-right">
+              <p className="private-value font-display font-bold leading-tight">
+                {formatMoney(summary.maturityValue, row.currency)}
+              </p>
+              <StatusText summary={summary} />
+            </div>
+          ) : (
+            <span className="shrink-0 rounded-md bg-blue px-2.5 py-1 text-[11px] font-bold uppercase text-white">
+              Add terms
             </span>
-            {terms && summary ? <StatusBadge summary={summary} terms={terms} /> : null}
-          </div>
-          <p className="mt-0.5 text-xs font-semibold text-muted">
-            {terms
-              ? `${formatRate(terms.rate)} · ${
-                  terms.type === "rd" ? `${money(terms.amount)} a month` : PAYOUT_LABEL[terms.payout]
-                } · ${formatDate(terms.start)} → ${formatDate(terms.maturity)}`
-              : "Add the rate and dates to see interest and when it matures."}
-          </p>
-        </div>
-        <DepositTermsEditor id={row.id} name={row.name} type={row.type} initial={initial} />
-      </div>
+          )}
+          <Chevron />
+        </summary>
 
-      {terms && summary ? (
-        <>
-          <div
-            className="mt-3 h-2 overflow-hidden rounded-full bg-background"
-            role="progressbar"
-            aria-label={`${row.name}: share of the term passed`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(summary.elapsed * 100)}
-          >
-            <div
-              className={clsx("h-full rounded-full", summary.status === "matured" ? "bg-green" : "bg-orange")}
-              style={{ width: `${Math.max(2, summary.elapsed * 100)}%` }}
-            />
-          </div>
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-            {terms.payout === "maturity" ? (
-              <Figure
-                label={summary.status === "matured" ? "Paid out" : "Worth now"}
-                value={money(summary.valueNow)}
-                note={terms.type === "rd" ? `${money(summary.deposited)} paid in` : undefined}
-              />
-            ) : (
-              <Figure label="Principal" value={money(summary.deposited)} />
-            )}
-            <Figure
-              label="At maturity"
-              value={money(summary.maturityValue)}
-              note={terms.payout === "maturity" ? undefined : "Principal back"}
-            />
-            <Figure
-              label={terms.payout === "maturity" ? "Interest so far" : "Interest paid so far"}
-              value={money(summary.interestSoFar)}
-              note={`of ${money(summary.totalInterest)}`}
-            />
-            {summary.payoutAmount !== null ? (
-              <Figure
-                label={terms.payout === "monthly" ? "Each month" : "Each quarter"}
-                value={money(summary.payoutAmount)}
-                note={summary.nextPayout ? `Next ${formatDate(summary.nextPayout)}` : "No payouts left"}
-              />
-            ) : (
-              <Figure
-                label={summary.status === "matured" ? "Matured" : "Time left"}
-                value={
-                  summary.status === "matured"
-                    ? formatDate(terms.maturity)
-                    : summary.daysLeft >= 60
-                      ? `${Math.round(summary.daysLeft / 30.4)} months`
-                      : `${summary.daysLeft} days`
-                }
-              />
-            )}
-          </dl>
-        </>
-      ) : null}
+        <div className="space-y-3 border-t-2 border-ink/10 bg-background px-3 py-3 sm:px-4">
+          {terms && summary ? (
+            <>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <Figures row={row as FullRow} />
+              </dl>
+              <p className="text-[11px] font-semibold text-muted">
+                Started {formatDate(terms.start)}. Estimate before tax.
+              </p>
+            </>
+          ) : null}
+          <DepositTermsEditor id={row.id} name={row.name} type={row.type} initial={initial} />
+        </div>
+      </details>
     </li>
   );
 }
 
 const STATUS_ORDER = { matured: 0, soon: 1, active: 2, upcoming: 3 } as const;
 
-export function DepositsCard({ rows }: { rows: DepositRow[] }) {
-  const withTerms = rows.filter(
-    (row): row is DepositRow & { terms: DepositTerms; summary: DepositSummary } => !!row.terms && !!row.summary
+function Tile({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="brut-border min-w-0 rounded-md bg-background p-3">
+      <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">{label}</dt>
+      {children}
+    </div>
   );
+}
+
+export function DepositsCard({ rows }: { rows: DepositRow[] }) {
+  const withTerms = rows.filter((row): row is FullRow => !!row.terms && !!row.summary);
   const sorted = [
-    ...withTerms.sort(
+    ...[...withTerms].sort(
       (a, b) =>
         STATUS_ORDER[a.summary.status] - STATUS_ORDER[b.summary.status] ||
         a.terms.maturity.localeCompare(b.terms.maturity)
@@ -173,8 +239,10 @@ export function DepositsCard({ rows }: { rows: DepositRow[] }) {
   const interest = sumByCurrency(live, (r) => r.summary.interestSoFar, (r) => r.currency);
   const maturingSoon = live.filter((r) => r.summary.daysLeft <= UPCOMING_DAYS);
   const maturingTotal = sumByCurrency(maturingSoon, (r) => r.summary.maturityValue, (r) => r.currency);
-  const payoutRows = live.filter((r) => r.summary.monthlyIncome > 0);
-  const monthlyIncome = sumByCurrency(payoutRows, (r) => r.summary.monthlyIncome, (r) => r.currency);
+  const deductions = sumByCurrency(live, (r) => r.summary.monthlyDeduction, (r) => r.currency);
+  const payouts = sumByCurrency(live, (r) => r.summary.monthlyIncome, (r) => r.currency);
+  const hasDeductions = live.some((r) => r.summary.monthlyDeduction > 0);
+  const hasPayouts = live.some((r) => r.summary.monthlyIncome > 0);
   const matured = withTerms.length - live.length;
 
   return (
@@ -183,24 +251,17 @@ export function DepositsCard({ rows }: { rows: DepositRow[] }) {
         storageKey="lifecairn:finance:networth-hidden"
         label="deposit amounts"
         title="Deposits"
-        description="Your FDs and RDs: interest, maturity and payouts. Estimates before tax."
+        description="FDs and RDs: what they're worth and when they mature. Tap one for details."
       >
         {withTerms.length > 0 ? (
-          <dl className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="brut-border rounded-md bg-background p-3">
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">In deposits</dt>
+          <dl className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <Tile label="In deposits">
               <dd className="private-value font-display text-lg font-bold">{formatCurrencyTotals(deposited)}</dd>
-            </div>
-            <div className="brut-border rounded-md bg-background p-3">
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Interest so far</dt>
-              <dd className="private-value font-display text-lg font-bold text-green">
-                {formatCurrencyTotals(interest)}
-              </dd>
-            </div>
-            <div className="brut-border rounded-md bg-background p-3">
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">
-                Maturing in {UPCOMING_DAYS} days
-              </dt>
+            </Tile>
+            <Tile label="Interest so far">
+              <dd className="private-value font-display text-lg font-bold text-green">{formatCurrencyTotals(interest)}</dd>
+            </Tile>
+            <Tile label={`Maturing · ${UPCOMING_DAYS} days`}>
               <dd className="private-value font-display text-lg font-bold">
                 {maturingSoon.length > 0 ? formatCurrencyTotals(maturingTotal) : "Nothing"}
               </dd>
@@ -209,27 +270,31 @@ export function DepositsCard({ rows }: { rows: DepositRow[] }) {
                   {maturingSoon.length} deposit{maturingSoon.length === 1 ? "" : "s"}
                 </dd>
               ) : null}
-            </div>
-            <div className="brut-border rounded-md bg-background p-3">
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Interest payouts</dt>
-              <dd className="private-value font-display text-lg font-bold">
-                {payoutRows.length > 0 ? `≈ ${formatCurrencyTotals(monthlyIncome)}` : "None"}
-              </dd>
-              <dd className="text-[11px] font-semibold text-muted">
-                {payoutRows.length > 0 ? "a month, on average" : "All paid at maturity"}
-              </dd>
-            </div>
+            </Tile>
+            <Tile label="Each month">
+              {hasDeductions ? (
+                <dd className="private-value text-sm font-bold">−{formatCurrencyTotals(deductions)} into RDs</dd>
+              ) : null}
+              {hasPayouts ? (
+                <dd className="private-value text-sm font-bold text-green">
+                  +≈{formatCurrencyTotals(payouts)} interest
+                </dd>
+              ) : null}
+              {!hasDeductions && !hasPayouts ? (
+                <dd className="text-sm font-bold text-muted">Nothing in or out</dd>
+              ) : null}
+            </Tile>
           </dl>
         ) : null}
 
         {matured > 0 ? (
-          <p className="mb-3 text-sm font-bold">
-            {matured === 1 ? "1 deposit has" : `${matured} deposits have`} matured. Renew with new terms, or delete
+          <p className="mb-3 rounded-md bg-yellow/50 px-3 py-2 text-sm font-bold">
+            {matured === 1 ? "1 deposit has" : `${matured} deposits have`} matured: renew with new terms, or delete
             under Update values once the money has moved.
           </p>
         ) : null}
 
-        <ul className="space-y-2">
+        <ul className="brut-border divide-y-2 divide-ink/10 overflow-hidden rounded-md bg-surface">
           {sorted.map((row) => (
             <DepositItem key={row.id} row={row} />
           ))}

@@ -9,6 +9,16 @@ function pct(part: number, whole: number) {
   return whole > 0 ? (part / whole) * 100 : 0;
 }
 
+/** "€1.2k" for tight spots like the six-month labels on a phone. */
+function formatEURCompact(value: number) {
+  return new Intl.NumberFormat("en-IE", {
+    style: "currency",
+    currency: "EUR",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 /* ------------------------------------------------------------------ */
 /* Month pulse: am I on track?                                         */
 /* ------------------------------------------------------------------ */
@@ -96,7 +106,7 @@ export function MonthPulse({
           <p className="mt-3 text-sm font-semibold">{verdict.line}</p>
 
           <p className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Kept in {monthLabel}</p>
-          <p className={`font-display text-5xl font-bold tracking-tight ${kept >= 0 ? "text-ink" : "text-pink"}`}>
+          <p className={`font-display text-4xl font-bold tracking-tight sm:text-5xl ${kept >= 0 ? "text-ink" : "text-pink"}`}>
             {formatEUR(kept)}
           </p>
           <p className="text-sm font-semibold text-muted">
@@ -178,7 +188,7 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
         }
       />
 
-      <div className="mt-4 grid flex-1 grid-cols-6 items-end gap-2 border-b-2 border-ink" style={{ minHeight: "11rem" }}>
+      <div className="mt-4 grid flex-1 grid-cols-6 items-end gap-1 border-b-2 border-ink sm:gap-2" style={{ minHeight: "11rem" }}>
         {months.map((m) => {
           const kept = m.income - m.expense;
           const selected = m.month === selectedMonth;
@@ -212,7 +222,7 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
           );
         })}
       </div>
-      <div className="mt-1.5 grid grid-cols-6 gap-2">
+      <div className="mt-1.5 grid grid-cols-6 gap-1 sm:gap-2">
         {months.map((m) => {
           const kept = m.income - m.expense;
           return (
@@ -221,7 +231,14 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
                 {m.label.slice(0, 3)}
               </p>
               <p className={`text-[11px] font-bold ${kept < 0 ? "text-pink" : "text-muted"}`}>
-                {m.income > 0 || m.expense > 0 ? `${kept >= 0 ? "+" : ""}${formatEUR(kept)}` : "—"}
+                {m.income > 0 || m.expense > 0 ? (
+                  <>
+                    <span className="sm:hidden">{`${kept >= 0 ? "+" : ""}${formatEURCompact(kept)}`}</span>
+                    <span className="hidden sm:inline">{`${kept >= 0 ? "+" : ""}${formatEUR(kept)}`}</span>
+                  </>
+                ) : (
+                  "—"
+                )}
               </p>
             </div>
           );
@@ -354,7 +371,7 @@ export function NetWorth({
                   </div>
                   <ul className="mt-3 space-y-1.5">
                     {byType.map(({ type, value }) => (
-                      <li key={type} className="grid grid-cols-[7.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+                      <li key={type} className="grid grid-cols-[6rem_minmax(0,1fr)_auto] items-center gap-2 text-xs sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
                         <span className="truncate font-bold uppercase text-muted">{TYPE_LABEL[type] ?? type}</span>
                         <span className="h-2.5 overflow-hidden rounded-full bg-surface">
                           <span

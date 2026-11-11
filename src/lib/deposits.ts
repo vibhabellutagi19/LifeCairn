@@ -125,6 +125,11 @@ export type DepositSummary = {
   /** Interest per month on average from payout FDs, for the overall picture. */
   monthlyIncome: number;
   nextPayout: string | null;
+  /** RD only: instalments taken so far / in total, the monthly deduction, and the next one. */
+  instalmentsPaid: number;
+  instalmentsTotal: number;
+  monthlyDeduction: number;
+  nextInstalment: string | null;
   daysLeft: number;
   /** Share of the term that has passed, 0–1. */
   elapsed: number;
@@ -157,6 +162,10 @@ export function summarizeDeposit(terms: DepositTerms, today: string): DepositSum
   let payoutAmount: number | null = null;
   let monthlyIncome = 0;
   let nextPayout: string | null = null;
+  let instalmentsPaid = 0;
+  let instalmentsTotal = 0;
+  let monthlyDeduction = 0;
+  let nextInstalment: string | null = null;
 
   if (terms.type === "rd") {
     // One instalment on the start date and on the same day each month after,
@@ -175,6 +184,12 @@ export function summarizeDeposit(terms: DepositTerms, today: string): DepositSum
     }
     deposited = paid * amount;
     totalInterest = maturityValue - count * amount;
+    instalmentsPaid = paid;
+    instalmentsTotal = count;
+    if (paid < count) {
+      monthlyDeduction = amount;
+      nextInstalment = addMonthsISO(start, paid);
+    }
   } else if (terms.payout === "maturity") {
     deposited = amount;
     valueNow = started ? grow(amount, rate, start, asOf, perYear) : amount;
@@ -204,6 +219,10 @@ export function summarizeDeposit(terms: DepositTerms, today: string): DepositSum
       payoutAmount,
       monthlyIncome,
       nextPayout,
+      instalmentsPaid,
+      instalmentsTotal,
+      monthlyDeduction,
+      nextInstalment,
       daysLeft,
       elapsed,
       status,
@@ -219,6 +238,10 @@ export function summarizeDeposit(terms: DepositTerms, today: string): DepositSum
     payoutAmount,
     monthlyIncome,
     nextPayout,
+    instalmentsPaid,
+    instalmentsTotal,
+    monthlyDeduction,
+    nextInstalment,
     daysLeft,
     elapsed,
     status,
