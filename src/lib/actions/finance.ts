@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   financeAccounts,
@@ -14,6 +14,7 @@ import { isExpenseCategory, parseTags } from "@/lib/financeCategories";
 import { requireUserId } from "@/lib/auth";
 import { isCurrency } from "@/lib/format";
 import { isDepositType, isInterestPayout } from "@/lib/deposits";
+import type { HistoryImportPayload } from "@/lib/snapshotImport";
 
 function revalidateAll() {
   revalidatePath("/finance");
@@ -241,6 +242,114 @@ export async function saveMonthlyFinanceSnapshot(month: string, formData: FormDa
   });
 
   revalidateAll();
+}
+
+/**
+ * Import past monthly snapshots (pasted from a spreadsheet). For each month,
+ * the imported savings' values are replaced and any other savings already in
+ * that month's snapshot are left as they are.
+ */
+export async function importSnapshotHistory(payload: HistoryImportPayload) {
+  const userId = await requireUserId();
+  const accounts = await db
+    .select()
+    .from(financeAccounts)
+    .where(eq(financeAccounts.userId, userId))
+    .orderBy(financeAccounts.id);
+  const byId = new Map(accounts.map((account, index) => [account.id, { account, index }]));
+
+  const months = Array.isArray(payload?.months) ? payload.months : [];
+  if (months.length === 0 || months.length > 120) return { ok: false as const, error: "Nothing to import." };
+  for (const m of months) {
+    const items = Array.isArray(m.items) ? m.items : [];
+    const validMonth = typeof m.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(m.month);
+    const validDate =
+      typeof m.snapshotDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(m.snapshotDate) && m.snapshotDate.startsWith(m.month);
+    if (!validMonth || !validDate || items.length === 0) {
+      return { ok: false as const, error: `Month ${String(m.month)} isn't valid.` };
+    }
+    const seen = new Set<number>();
+    for (const item of items) {
+      if (!byId.has(item.accountId) || seen.has(item.accountId)) {
+        return { ok: false as const, error: `A saving in ${m.month} is unknown or listed twice.` };
+      }
+      seen.add(item.accountId);
+      for (const n of [item.invested, item.current]) {
+        if (typeof n !== "number" || !Number.isFinite(n) || n < 0 || n >= 1e12) {
+          return { ok: false as const, error: `An amount in ${m.month} isn't valid.` };
+        }
+      }
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    for (const m of months) {
+      const existing = await tx.query.financeSnapshots.findFirst({
+        where: and(eq(financeSnapshots.userId, userId), eq(financeSnapshots.month, m.month)),
+      });
+      let snapshotId: number;
+      if (existing) {
+        snapshotId = existing.id;
+        await tx
+          .update(financeSnapshots)
+          .set({ snapshotDate: m.snapshotDate, updatedAt: new Date() })
+          .where(and(eq(financeSnapshots.id, existing.id), eq(financeSnapshots.userId, userId)));
+        await tx.delete(financeSnapshotItems).where(
+          and(
+            eq(financeSnapshotItems.snapshotId, existing.id),
+            eq(financeSnapshotItems.userId, userId),
+            inArray(
+              financeSnapshotItems.accountId,
+              m.items.map((item) => item.accountId)
+            )
+          )
+        );
+      } else {
+        const [created] = await tx
+          .insert(financeSnapshots)
+          .values({ userId, month: m.month, snapshotDate: m.snapshotDate })
+          .returning({ id: financeSnapshots.id });
+        snapshotId = created.id;
+      }
+      await tx.insert(financeSnapshotItems).values(
+        m.items.map((item) => {
+          const { account, index } = byId.get(item.accountId)!;
+          return {
+            userId,
+            snapshotId,
+            accountId: account.id,
+            accountName: account.name,
+            accountType: account.type,
+            investedAmount: item.invested.toFixed(2),
+            currentValue: item.current.toFixed(2),
+            currency: account.currency,
+            sortOrder: index,
+          };
+        })
+      );
+    }
+
+    // As with a saved snapshot: if an imported month is now the latest one,
+    // the savings' current balances follow it.
+    const [latest] = await tx
+      .select({ month: financeSnapshots.month })
+      .from(financeSnapshots)
+      .where(eq(financeSnapshots.userId, userId))
+      .orderBy(desc(financeSnapshots.month))
+      .limit(1);
+    const latestImported = months.find((m) => m.month === latest?.month);
+    if (latestImported) {
+      for (const item of latestImported.items) {
+        await tx
+          .update(financeAccounts)
+          .set({ balance: item.current.toFixed(2), updatedAt: new Date(`${latestImported.snapshotDate}T00:00:00`) })
+          .where(and(eq(financeAccounts.id, item.accountId), eq(financeAccounts.userId, userId)));
+      }
+    }
+  });
+
+  revalidateAll();
+  return { ok: true as const, months: months.length };
 }
 
 export async function createFinanceEntry(formData: FormData) {

@@ -10,6 +10,7 @@ import { AllocationCharts, type AllocationRow } from "@/components/AllocationCha
 import { SavingAccountControls } from "@/components/AccountRow";
 import { NewSavingModal } from "@/components/NewSavingModal";
 import { DepositsCard, type DepositRow } from "@/components/Deposits";
+import { SnapshotHistoryImport } from "@/components/SnapshotHistoryImport";
 import { depositTermsOf, isDepositType, summarizeDeposit } from "@/lib/deposits";
 import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
 import { requireModule } from "@/lib/moduleSettings";
@@ -108,7 +109,7 @@ export default async function WealthPage({
           })
         )
         .filter((point) => point.value > 0)
-        .slice(-12),
+        .slice(-24),
     ])
   ) as Record<Currency, NetWorthPoint[]>;
 
@@ -155,7 +156,15 @@ export default async function WealthPage({
       <PageHeader
         title="Wealth"
         subtitle="Your savings and investments, from your monthly snapshots."
-        action={<NewSavingModal />}
+        action={
+          <div className="grid grid-cols-2 gap-2 sm:flex [&>button]:w-full sm:[&>button]:w-auto">
+            <SnapshotHistoryImport
+              savings={accounts.map((a) => ({ id: a.id, name: a.name, currency: a.currency }))}
+              existingMonths={snapshots.map((s) => s.month)}
+            />
+            <NewSavingModal />
+          </div>
+        }
       />
 
       <FinanceMonthBar

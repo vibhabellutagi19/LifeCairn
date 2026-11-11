@@ -10,16 +10,11 @@ import { FinanceMonthBar } from "@/components/FinanceMonthBar";
 import { QuickExpense } from "@/components/QuickExpense";
 import { requireModule } from "@/lib/moduleSettings";
 import { BulkExpenseModal } from "@/components/BulkExpenseModal";
-import {
-  ExpenseBreakdown,
-  SpendingByTag,
-  type TaggedExpense,
-  type TagSummary,
-} from "@/components/ExpenseInsights";
+import { ExpenseBreakdown } from "@/components/ExpenseInsights";
 import { FinanceEntryModal } from "@/components/FinanceEntryModal";
 import { FinanceEntryRow } from "@/components/FinanceEntryRow";
 import { currentMonthKey, daysInMonthISO, monthRangeISO, shiftMonthKey, todayISO } from "@/lib/dates";
-import { EXPENSE_CATEGORIES } from "@/lib/financeCategories";
+import { EXPENSE_CATEGORIES, categoryColor } from "@/lib/financeCategories";
 import { CURRENCIES, formatDateLong, formatEUR, formatMoney, sumByCurrency } from "@/lib/format";
 import { financeHref, formatMonthLabel, resolveMonth } from "@/lib/financeView";
 import { depositTermsOf, summarizeDeposit } from "@/lib/deposits";
@@ -45,10 +40,10 @@ function sumAmounts(rows: { amount: string }[]) {
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; q?: string }>;
+  searchParams: Promise<{ month?: string; q?: string; tag?: string }>;
 }) {
   const userId = await requireModule("finance");
-  const { month: requestedMonth, q: rawQuery } = await searchParams;
+  const { month: requestedMonth, q: rawQuery, tag: rawTag } = await searchParams;
   const monthKey = currentMonthKey();
   const selectedMonth = resolveMonth(requestedMonth);
   const { start, end } = monthRangeISO(selectedMonth);
@@ -135,32 +130,31 @@ export default async function FinancePage({
     .filter(({ total }) => total > 0)
     .sort((a, b) => b.total - a.total);
 
-  // Tags for the selected month, built from that month's expenses (newest first).
-  const expensesByTag = new Map<string, TaggedExpense[]>();
+  // Tags used in the selected month, biggest first: the Transactions filter chips.
+  const tagTotals = new Map<string, { total: number; count: number }>();
   for (const entry of expenseEntries) {
     for (const tag of entry.tags) {
-      const list = expensesByTag.get(tag) ?? [];
-      list.push({
-        id: entry.id,
-        date: entry.date,
-        source: entry.source,
-        category: entry.category,
-        amount: Number(entry.amount),
-        notes: entry.notes,
-      });
-      expensesByTag.set(tag, list);
+      const t = tagTotals.get(tag) ?? { total: 0, count: 0 };
+      tagTotals.set(tag, { total: t.total + Number(entry.amount), count: t.count + 1 });
     }
   }
-  const tagSummaries: TagSummary[] = [...expensesByTag.entries()]
-    .map(([tag, expenses]) => {
-      const byCategory = new Map<string, number>();
-      for (const e of expenses) byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
-      const items = [...byCategory.entries()]
-        .map(([category, total]) => ({ category, total }))
-        .sort((a, b) => b.total - a.total);
-      return { tag, items, expenses, total: items.reduce((sum, item) => sum + item.total, 0) };
-    })
+  const monthTags = [...tagTotals.entries()]
+    .map(([tag, t]) => ({ tag, ...t }))
     .sort((a, b) => b.total - a.total);
+  // ?tag= filters the month's expenses (ignored while searching, or if the month doesn't use it).
+  const activeTag = !query && rawTag && tagTotals.has(rawTag) ? rawTag : null;
+  const shownExpenses = activeTag ? expenseEntries.filter((entry) => entry.tags.includes(activeTag)) : expenseEntries;
+  const shownTotal = sumAmounts(shownExpenses);
+  const activeTagCategories = activeTag
+    ? EXPENSE_CATEGORIES.map((category) => ({
+        category,
+        total: sumAmounts(shownExpenses.filter((entry) => entry.category === category)),
+      }))
+        .filter(({ total }) => total > 0)
+        .sort((a, b) => b.total - a.total)
+    : [];
+  const tagHref = (tag: string | null) =>
+    `${financeHref(selectedMonth)}${tag ? `&${new URLSearchParams({ tag })}` : ""}#transactions`;
 
   // Wealth teaser: everything saved (emergency funds included), per currency.
   const netWorth = sumByCurrency(accounts, (a) => a.balance, (a) => a.currency);
@@ -175,7 +169,7 @@ export default async function FinancePage({
   const defaultEntryDate = selectedMonth === monthKey ? todayISO() : monthRangeISO(selectedMonth).end;
 
   const monthLabel = formatMonthLabel(selectedMonth);
-  const expensesByDay = groupBy(expenseEntries, (entry) => entry.date);
+  const expensesByDay = groupBy(shownExpenses, (entry) => entry.date);
   const resultsByMonth = searchResults ? groupBy(searchResults, (entry) => entry.date.slice(0, 7)) : [];
   const searchTotal = searchResults ? sumAmounts(searchResults) : 0;
 
@@ -256,12 +250,16 @@ export default async function FinancePage({
         />
         <div className="space-y-4">
           <ExpenseBreakdown monthLabel={monthLabel} total={expense} items={expenseByCategory} />
-          <SpendingByTag tags={tagSummaries} monthLabel={monthLabel} monthTotal={expense} />
+          <div id="transactions" className="scroll-mt-48 md:scroll-mt-24">
           <Card>
             <CardHeader
               title="Transactions"
               description={
-                query ? "Search results from every month." : `Income and expenses logged in ${monthLabel}.`
+                query
+                  ? "Search results from every month."
+                  : activeTag
+                    ? `Expenses tagged #${activeTag} in ${monthLabel}.`
+                    : `Income and expenses logged in ${monthLabel}.`
               }
             />
             <Form action="/finance" scroll={false} className="mb-5 flex flex-wrap items-center gap-2">
@@ -290,6 +288,68 @@ export default async function FinancePage({
                 </Link>
               ) : null}
             </Form>
+
+            {!query && monthTags.length > 0 ? (
+              <nav aria-label="Filter by tag" className="mb-5">
+                {/* One scrolling row on phones, wrapping on wider screens. */}
+                <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+                  <Link
+                    href={tagHref(null)}
+                    scroll={false}
+                    aria-current={activeTag ? undefined : "true"}
+                    className={`brut-border shrink-0 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                      activeTag ? "bg-surface hover:bg-yellow" : "bg-ink text-surface"
+                    }`}
+                  >
+                    All
+                  </Link>
+                  {monthTags.map(({ tag, total }) => (
+                    <Link
+                      key={tag}
+                      href={tagHref(activeTag === tag ? null : tag)}
+                      scroll={false}
+                      aria-current={activeTag === tag ? "true" : undefined}
+                      className={`brut-border flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                        activeTag === tag ? "bg-blue text-white" : "bg-surface hover:bg-yellow"
+                      }`}
+                    >
+                      #{tag}
+                      <span className={activeTag === tag ? "text-white/80" : "text-muted"}>{formatEUR(total)}</span>
+                    </Link>
+                  ))}
+                </div>
+
+                {activeTag ? (
+                  <div className="brut-border mt-3 rounded-md bg-blue/10 p-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <p className="text-sm font-bold">
+                        #{activeTag} · {shownExpenses.length} {shownExpenses.length === 1 ? "expense" : "expenses"} ·{" "}
+                        {expense > 0 ? Math.round((shownTotal / expense) * 100) : 0}% of {monthLabel}
+                      </p>
+                      <p className="font-display text-xl font-bold text-pink">{formatEUR(shownTotal)}</p>
+                    </div>
+                    <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-surface" aria-hidden>
+                      {activeTagCategories.map(({ category, total }) => (
+                        <span
+                          key={category}
+                          className="h-full"
+                          style={{ width: `${(total / shownTotal) * 100}%`, backgroundColor: categoryColor(category) }}
+                        />
+                      ))}
+                    </div>
+                    <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                      {activeTagCategories.map(({ category, total }) => (
+                        <li key={category} className="flex items-center gap-1.5 text-xs">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColor(category) }} />
+                          <span className="font-bold uppercase text-muted">{category}</span>
+                          <span className="font-bold">{formatEUR(total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </nav>
+            ) : null}
 
             {searchResults ? (
               <div aria-live="polite">
@@ -334,16 +394,16 @@ export default async function FinancePage({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <div className={activeTag ? "" : "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"}>
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3 border-b-2 border-ink pb-1">
                     <h4 className="text-xs font-bold uppercase tracking-[0.18em]">
                       <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-pink" />
                       Expenses
                     </h4>
-                    <span className="font-display font-bold">{formatEUR(expense)}</span>
+                    <span className="font-display font-bold">{formatEUR(shownTotal)}</span>
                   </div>
-                  {expenseEntries.length === 0 ? (
+                  {shownExpenses.length === 0 ? (
                     <EmptyState>No expenses logged for {monthLabel}.</EmptyState>
                   ) : (
                     <div className="space-y-4 lg:max-h-[640px] lg:overflow-y-auto lg:pr-1">
@@ -373,7 +433,8 @@ export default async function FinancePage({
                     </div>
                   )}
                 </div>
-                <div>
+                {/* Income has no tags, so it's hidden while a tag filter is on. */}
+                <div className={activeTag ? "hidden" : undefined}>
                   <div className="mb-3 flex items-center justify-between gap-3 border-b-2 border-ink pb-1">
                     <h4 className="text-xs font-bold uppercase tracking-[0.18em]">
                       <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-blue" />
@@ -402,6 +463,7 @@ export default async function FinancePage({
               </div>
             )}
           </Card>
+          </div>
         </div>
       </section>
 
