@@ -13,11 +13,12 @@ import {
 } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { CardHeader, SectionHeader } from "@/components/FinanceHeadings";
-import { MonthPulse, TrendBars, YearSummary, type MonthTrend } from "@/components/FinanceDashboard";
+import { MonthReceipt, SpendCalendar, SpendingPace, TrendBars, YearSummary, type MonthTrend } from "@/components/FinanceDashboard";
+import { OneLineLog } from "@/components/OneLineLog";
+import { FinanceThumbBar } from "@/components/FinanceThumbBar";
 import { RecurringEntries, type RecurringItem } from "@/components/RecurringEntries";
 import { PrivacyScope, PrivacyToggle } from "@/components/PrivacyBlur";
 import { FinanceMonthBar } from "@/components/FinanceMonthBar";
-import { QuickExpense } from "@/components/QuickExpense";
 import { requireModule } from "@/lib/moduleSettings";
 import { BulkExpenseModal } from "@/components/BulkExpenseModal";
 import { ExpenseBreakdown } from "@/components/ExpenseInsights";
@@ -50,10 +51,10 @@ function sumAmounts(rows: { amount: string }[]) {
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; q?: string; tag?: string; cat?: string }>;
+  searchParams: Promise<{ month?: string; q?: string; tag?: string; cat?: string; day?: string }>;
 }) {
   const userId = await requireModule("finance");
-  const { month: requestedMonth, q: rawQuery, tag: rawTag, cat: rawCat } = await searchParams;
+  const { month: requestedMonth, q: rawQuery, tag: rawTag, cat: rawCat, day: rawDay } = await searchParams;
   const monthKey = currentMonthKey();
   const selectedMonth = resolveMonth(requestedMonth);
   const { start, end } = monthRangeISO(selectedMonth);
@@ -216,9 +217,13 @@ export default async function FinancePage({
   // ?tag= and ?cat= filter the month's expenses (ignored while searching).
   const activeTag = !query && rawTag && tagTotals.has(rawTag) ? rawTag : null;
   const activeCategory = !query && rawCat && isExpenseCategory(rawCat) ? rawCat : null;
-  const filtering = activeTag !== null || activeCategory !== null;
+  const activeDay = !query && rawDay && rawDay.startsWith(`${selectedMonth}-`) && /^\d{4}-\d{2}-\d{2}$/.test(rawDay) ? rawDay : null;
+  const filtering = activeTag !== null || activeCategory !== null || activeDay !== null;
   const shownExpenses = expenseEntries.filter(
-    (entry) => (!activeTag || entry.tags.includes(activeTag)) && (!activeCategory || entry.category === activeCategory)
+    (entry) =>
+      (!activeTag || entry.tags.includes(activeTag)) &&
+      (!activeCategory || entry.category === activeCategory) &&
+      (!activeDay || entry.date === activeDay)
   );
   const shownTotal = sumAmounts(shownExpenses);
   const activeTagCategories = activeTag
@@ -229,12 +234,22 @@ export default async function FinancePage({
         .filter(({ total }) => total > 0)
         .sort((a, b) => b.total - a.total)
     : [];
-  const filterHref = ({ tag = activeTag, cat = activeCategory }: { tag?: string | null; cat?: string | null }) => {
+  const filterHref = ({
+    tag = activeTag,
+    cat = activeCategory,
+    day = activeDay,
+  }: {
+    tag?: string | null;
+    cat?: string | null;
+    day?: string | null;
+  }) => {
     const params = new URLSearchParams({ month: selectedMonth });
     if (tag) params.set("tag", tag);
     if (cat) params.set("cat", cat);
+    if (day) params.set("day", day);
     return `/finance?${params}#transactions`;
   };
+  const dayHref = (day: string | null) => filterHref({ day });
   const tagHref = (tag: string | null) => filterHref({ tag });
   const categoryHref = (cat: string | null) => filterHref({ cat });
 
@@ -257,11 +272,28 @@ export default async function FinancePage({
   const searchIncome = searchResults?.filter((entry) => entry.type === "income") ?? [];
   const latestEntries = monthEntries.slice(0, 4);
 
+  // Receipt and calendar extras.
+  const regularsDue = recurringItems.filter((i) => !i.added && i.type === "expense").reduce((sum, i) => sum + i.amount, 0);
+  const biggestIndex = daily.reduce((best, v, i) => (v > daily[best] ? i : best), 0);
+  const biggestDayISO = monthDays[biggestIndex];
+  const biggestDayEntries = expenseEntries
+    .filter((entry) => entry.date === biggestDayISO)
+    .sort((a, b) => Number(b.amount) - Number(a.amount));
+  const biggestDay =
+    daily[biggestIndex] > 0 && biggestDayEntries[0]
+      ? {
+          day: biggestDayISO,
+          amount: daily[biggestIndex],
+          what: biggestDayEntries.length > 1 ? `${biggestDayEntries[0].source} +${biggestDayEntries.length - 1}` : biggestDayEntries[0].source,
+        }
+      : null;
+
   const sectionLink = "rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow";
   const wealthHref = financeHref(selectedMonth, "/finance/wealth");
 
   return (
-    <div>
+    <div className="pb-24 md:pb-0">
+      <FinanceThumbBar defaultDate={defaultEntryDate} />
       <PageHeader
         title="Finance"
         subtitle="What came in, what went out, and what you've built up."
@@ -312,9 +344,23 @@ export default async function FinancePage({
           description={`Is ${monthLabel} on track, and how it compares with recent months.`}
         />
         <div className="space-y-4">
-          <Card className="bg-yellow/40">
-            <CardHeader className="mb-3" title="Quick log" description="Add an expense in one line." />
-            <QuickExpense defaultDate={defaultEntryDate} merchants={merchants} />
+          {/* Phones: receipt, log, calendar, regulars. Wide screens: receipt and regulars on the left. */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
+            <div className="lg:col-start-1 lg:row-start-1">
+              <MonthReceipt
+                month={selectedMonth}
+                monthLabel={monthLabel}
+                daily={daily}
+                uptoDay={uptoDay}
+                isCurrent={isCurrentMonth}
+                income={income}
+                expense={expense}
+                regularsDue={regularsDue}
+                incomeTarget={incomeTarget}
+              />
+            </div>
+            <Card className="bg-yellow/40 lg:col-start-2 lg:row-start-1">
+              <OneLineLog today={defaultEntryDate} merchants={merchants} />
             {latestEntries.length > 0 ? (
               <div className="mt-3 border-t-2 border-ink/15 pt-3">
                 <div className="mb-1.5 flex items-baseline justify-between gap-2">
@@ -337,20 +383,22 @@ export default async function FinancePage({
                 </ul>
               </div>
             ) : null}
-          </Card>
-          <Card>
-            <RecurringEntries month={selectedMonth} monthLabel={monthLabel} items={recurringItems} />
-          </Card>
-          <MonthPulse
-            month={selectedMonth}
-            monthLabel={monthLabel}
-            daily={daily}
-            uptoDay={uptoDay}
-            isCurrent={isCurrentMonth}
-            income={income}
-            expense={expense}
-            incomeTarget={incomeTarget}
-          />
+            </Card>
+            <div className="lg:col-start-2 lg:row-span-2 lg:row-start-2">
+              <SpendCalendar
+                month={selectedMonth}
+                daily={daily}
+                uptoDay={uptoDay}
+                activeDay={activeDay}
+                hrefFor={dayHref}
+                biggestDay={biggestDay}
+              />
+            </div>
+            <Card className="lg:col-start-1 lg:row-start-2">
+              <RecurringEntries month={selectedMonth} monthLabel={monthLabel} items={recurringItems} />
+            </Card>
+          </div>
+          <SpendingPace monthLabel={monthLabel} daily={daily} uptoDay={uptoDay} isCurrent={isCurrentMonth} income={income} />
           <TrendBars months={trendMonths} selectedMonth={selectedMonth} />
           <YearSummary year={year} months={yearMonths} selectedMonth={selectedMonth} />
         </div>
@@ -382,7 +430,7 @@ export default async function FinancePage({
                 query
                   ? "Search results from every month."
                   : filtering
-                    ? `Expenses in ${monthLabel}${activeCategory ? ` under ${activeCategory}` : ""}${activeTag ? ` tagged #${activeTag}` : ""}.`
+                    ? `Expenses ${activeDay ? `on ${formatDateLong(activeDay)}` : `in ${monthLabel}`}${activeCategory ? ` under ${activeCategory}` : ""}${activeTag ? ` tagged #${activeTag}` : ""}.`
                     : `Income and expenses logged in ${monthLabel}.`
               }
               action={
@@ -420,6 +468,20 @@ export default async function FinancePage({
                 </Link>
               ) : null}
             </Form>
+
+            {activeDay ? (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted">Day</span>
+                <Link
+                  href={dayHref(null)}
+                  scroll={false}
+                  className="brut-border flex items-center gap-1.5 rounded-full bg-yellow px-3 py-1.5 text-xs font-bold"
+                  aria-label="Show every day again"
+                >
+                  {formatDateShort(activeDay)} <span aria-hidden>✕</span>
+                </Link>
+              </div>
+            ) : null}
 
             {activeCategory ? (
               <div className="mb-3 flex flex-wrap items-center gap-2">

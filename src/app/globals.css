@@ -2813,6 +2813,14 @@ textarea {
   }
 }
 
+/* The torn bottom edge of the month receipt on Finance. */
+.receipt-edge {
+  height: 14px;
+  background:
+    linear-gradient(-45deg, transparent 9px, var(--surface) 0) 0 0 / 18px 14px repeat-x,
+    linear-gradient(45deg, transparent 9px, var(--surface) 0) 0 0 / 18px 14px repeat-x;
+}
+
 /* Printing (reports → "Save as PDF"): keep colours, drop app chrome and shadows. */
 @media print {
   @page {

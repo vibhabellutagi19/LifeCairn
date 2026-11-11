@@ -21,7 +21,7 @@ function formatEURCompact(value: number) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Month pulse: am I on track?                                         */
+/* The month as a receipt: am I on track?                              */
 /* ------------------------------------------------------------------ */
 
 type Verdict = { label: string; icon: string; tone: string; line: string };
@@ -31,47 +31,62 @@ function verdictFor({
   expense,
   projected,
   isCurrent,
+  perDayLeft,
+  daysLeft,
 }: {
   income: number;
   expense: number;
   projected: number;
   isCurrent: boolean;
+  perDayLeft: number;
+  daysLeft: number;
 }): Verdict {
   if (income <= 0) {
     return {
       label: "No income yet",
       icon: "…",
-      tone: "bg-background text-ink",
+      tone: "border-muted text-muted",
       line: expense > 0 ? "Log this month’s income to see whether spending is on track." : "Nothing logged yet.",
     };
   }
   if (expense > income) {
     return {
-      label: "Over income",
+      label: "Over",
       icon: "✕",
-      tone: "bg-pink text-white",
-      line: `Spending is ${formatEUR(expense - income)} above income.`,
+      tone: "border-pink text-pink",
+      line: `Spending is ${formatEUR(expense - income)} above what came in.`,
     };
   }
   if (isCurrent && projected > income) {
     return {
       label: "Watch it",
       icon: "!",
-      tone: "bg-orange text-white",
-      line: `At this pace you’ll spend about ${formatEUR(projected)}, more than you earned.`,
+      tone: "border-orange text-orange",
+      line: `At this pace you’ll spend about ${formatEUR(projected)}, more than came in.`,
     };
   }
   return {
-    label: isCurrent ? "On track" : "Kept money",
+    label: isCurrent ? "On track" : "Kept",
     icon: "✓",
-    tone: "bg-green text-white",
+    tone: "border-green text-green",
     line: isCurrent
-      ? `At this pace you’ll spend about ${formatEUR(projected)} and keep ${formatEUR(income - projected)}.`
-      : `You kept ${formatEUR(income - expense)} of what came in.`,
+      ? `At this pace you keep about ${formatEUR(income - projected)} this month. You can spend ${formatEUR(perDayLeft)} a day for the next ${daysLeft} ${daysLeft === 1 ? "day" : "days"}.`
+      : `You kept ${formatEUR(income - expense)} of what came in, ${Math.round(pct(income - expense, income))}%.`,
   };
 }
 
-export function MonthPulse({
+function ReceiptLine({ label, value, quiet = false }: { label: string; value: string; quiet?: boolean }) {
+  return (
+    <div className={`flex items-baseline gap-1.5 font-display ${quiet ? "text-sm text-muted" : "text-base"}`}>
+      <span>{label}</span>
+      <span aria-hidden className={`flex-1 -translate-y-1 border-b-2 border-dotted ${quiet ? "border-ink/15" : "border-ink/30"}`} />
+      <span className={quiet ? "" : "font-bold"}>{value}</span>
+    </div>
+  );
+}
+
+/** The top of Finance: in, out, regulars still due and what's kept, with a verdict stamp. */
+export function MonthReceipt({
   month,
   monthLabel,
   daily,
@@ -79,6 +94,7 @@ export function MonthPulse({
   isCurrent,
   income,
   expense,
+  regularsDue,
   incomeTarget,
 }: {
   month: string;
@@ -88,95 +104,213 @@ export function MonthPulse({
   isCurrent: boolean;
   income: number;
   expense: number;
-  /** The month's income target, if one is set. */
+  /** Regular expenses not yet added this month. */
+  regularsDue: number;
   incomeTarget: number | null;
 }) {
   const days = daily.length;
   const projected = uptoDay > 0 ? (expense / uptoDay) * days : 0;
-  const verdict = verdictFor({ income, expense, projected, isCurrent });
   const kept = income - expense;
   const daysLeft = isCurrent ? days - uptoDay + 1 : 0;
-  const perDayLeft = daysLeft > 0 && kept > 0 ? kept / daysLeft : 0;
-  const rate = pct(kept, income);
+  const perDayLeft = daysLeft > 0 && kept - regularsDue > 0 ? (kept - regularsDue) / daysLeft : 0;
+  const verdict = verdictFor({ income, expense, projected, isCurrent, perDayLeft, daysLeft });
 
   return (
-    <Card className="overflow-hidden p-0 sm:p-0">
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <div className="border-b-[3px] border-ink p-4 sm:p-5 lg:border-b-0 lg:border-r-[3px]">
+    <section aria-label={`${monthLabel} so far`} className="w-full">
+      <div className="brut-border rounded-t-lg border-b-0 bg-surface px-4 pb-2 pt-4 shadow-[5px_0_0_0_var(--ink)] sm:px-5 sm:pt-5">
+        <div className="flex justify-between font-display text-[11px] font-bold uppercase tracking-[0.16em] text-muted">
+          <span>{monthLabel}</span>
+          <span>{isCurrent ? `Day ${uptoDay} / ${days}` : "Closed"}</span>
+        </div>
+        <div className="mt-4 space-y-2.5">
+          <ReceiptLine label="Came in" value={`+${formatEUR(income)}`} />
+          <ReceiptLine label="Went out" value={`−${formatEUR(expense)}`} />
+          {regularsDue > 0 ? <ReceiptLine label="Regulars still due" value={`−${formatEUR(regularsDue)}`} quiet /> : null}
+        </div>
+        <div className="mt-3.5 flex items-end justify-between gap-2 border-t-[3px] border-double border-ink pt-3">
+          <div className="min-w-0">
+            <p className="font-display text-[11px] font-bold uppercase tracking-[0.16em] text-muted">
+              {isCurrent ? "Kept so far" : "Kept"}
+            </p>
+            <p className={`font-display text-4xl font-bold leading-none tracking-tight sm:text-5xl ${kept < 0 ? "text-pink" : ""}`}>
+              {formatEUR(kept)}
+            </p>
+          </div>
           <span
-            className={`brut-border inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-bold uppercase tracking-wide ${verdict.tone}`}
+            className={`mb-1.5 inline-flex shrink-0 -rotate-[9deg] items-center gap-1.5 rounded-lg border-[3px] px-2.5 py-1.5 font-display text-sm font-bold uppercase tracking-wider ${verdict.tone}`}
           >
-            <span aria-hidden className="font-display">{verdict.icon}</span>
+            <span aria-hidden>{verdict.icon}</span>
             {verdict.label}
           </span>
-          <p className="mt-3 text-sm font-semibold">{verdict.line}</p>
-
-          <p className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Kept in {monthLabel}</p>
-          <p className={`font-display text-4xl font-bold tracking-tight sm:text-5xl ${kept >= 0 ? "text-ink" : "text-pink"}`}>
-            {formatEUR(kept)}
-          </p>
-          <p className="text-sm font-semibold text-muted">
-            {income > 0 ? `${Math.round(rate)}% savings rate` : "Income minus expenses"}
-          </p>
-
-          <dl className="mt-5 grid grid-cols-2 gap-2">
-            <div className="brut-border rounded-md bg-surface px-3 py-2">
-              <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted">
-                <span className="h-2.5 w-2.5 rounded-full bg-blue" /> In
-              </dt>
-              <dd className="font-display text-xl font-bold">{formatEUR(income)}</dd>
-            </div>
-            <div className="brut-border rounded-md bg-surface px-3 py-2">
-              <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted">
-                <span className="h-2.5 w-2.5 rounded-full bg-pink" /> Out
-              </dt>
-              <dd className="font-display text-xl font-bold">{formatEUR(expense)}</dd>
-            </div>
-            {isCurrent ? (
-              <div className="brut-border col-span-2 flex items-baseline justify-between gap-3 rounded-md bg-background px-3 py-2">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">
-                  Can spend per day · {daysLeft} {daysLeft === 1 ? "day" : "days"} left
-                </dt>
-                <dd className="font-display text-xl font-bold">{formatEUR(perDayLeft)}</dd>
-              </div>
-            ) : null}
-          </dl>
-
-          <div className="mt-4">
-            {incomeTarget !== null ? (
-              <div className="mb-1.5">
-                <div className="flex items-baseline justify-between gap-2 text-[11px] font-bold uppercase tracking-wide">
-                  <span className="text-muted">Income target {formatEUR(incomeTarget)}</span>
-                  <span className={income >= incomeTarget ? "text-green" : "text-ink"}>
-                    {income >= incomeTarget ? "✓ reached" : `${Math.round(pct(income, incomeTarget))}%`}
-                  </span>
-                </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-background" aria-hidden>
-                  <div
-                    className={`h-full rounded-full ${income >= incomeTarget ? "bg-green" : "bg-blue"}`}
-                    style={{ width: `${Math.min(100, pct(income, incomeTarget))}%` }}
-                  />
-                </div>
-              </div>
-            ) : null}
-            <IncomeTargetEditor month={month} target={incomeTarget} />
-          </div>
         </div>
-
-        <div className="p-4 sm:p-5">
-          <CardHeader
-            className="mb-2"
-            title="Spending pace"
-            description="What you've spent so far, day by day, against your income."
-            action={
-              <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
-                {isCurrent ? `Day ${uptoDay} of ${days}` : monthLabel}
-              </span>
-            }
-          />
-          <PaceChart daily={daily} income={income} uptoDay={uptoDay} monthLabel={monthLabel} />
+        <p className="mb-1.5 mt-2.5 text-sm leading-snug text-ink/85">{verdict.line}</p>
+        <div className="mb-2 mt-3">
+          {incomeTarget !== null ? (
+            <div className="mb-1.5">
+              <div className="flex items-baseline justify-between gap-2 font-display text-[11px] font-bold uppercase tracking-wide">
+                <span className="text-muted">Income target {formatEUR(incomeTarget)}</span>
+                <span className={income >= incomeTarget ? "text-green" : "text-ink"}>
+                  {income >= incomeTarget ? "✓ reached" : `${Math.round(pct(income, incomeTarget))}%`}
+                </span>
+              </div>
+              <div className="mt-1 h-2.5 overflow-hidden rounded-full border-2 border-ink bg-background" aria-hidden>
+                <div
+                  className={`h-full ${income >= incomeTarget ? "bg-green" : "bg-blue"}`}
+                  style={{ width: `${Math.min(100, pct(income, incomeTarget))}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          <IncomeTargetEditor month={month} target={incomeTarget} />
         </div>
       </div>
+      <div aria-hidden className="receipt-edge border-x-[3px] border-ink" />
+    </section>
+  );
+}
+
+/** Cumulative spending through the month against income. */
+export function SpendingPace({
+  monthLabel,
+  daily,
+  uptoDay,
+  isCurrent,
+  income,
+}: {
+  monthLabel: string;
+  daily: number[];
+  uptoDay: number;
+  isCurrent: boolean;
+  income: number;
+}) {
+  return (
+    <Card>
+      <CardHeader
+        className="mb-2"
+        title="Spending pace"
+        description="What you've spent so far, day by day, against what came in."
+        action={
+          <span className="rounded-full bg-background px-3 py-1 text-xs font-bold uppercase text-muted">
+            {isCurrent ? `Day ${uptoDay} of ${daily.length}` : monthLabel}
+          </span>
+        }
+      />
+      <PaceChart daily={daily} income={income} uptoDay={uptoDay} monthLabel={monthLabel} />
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Where the days went: a month calendar shaded by spending            */
+/* ------------------------------------------------------------------ */
+
+// One hue, light to dark (sequential): how much was spent that day.
+const SPEND_STEPS = [
+  { below: 0.01, color: "#fdebe2", ink: "text-ink" },
+  { below: 20, color: "#fbc4a6", ink: "text-ink" },
+  { below: 50, color: "#f7905f", ink: "text-ink" },
+  { below: 150, color: "#e45a22", ink: "text-white" },
+  { below: Infinity, color: "#9e3a12", ink: "text-white" },
+];
+const stepFor = (amount: number) => SPEND_STEPS.find((s) => amount < s.below) ?? SPEND_STEPS[SPEND_STEPS.length - 1];
+
+export function SpendCalendar({
+  month,
+  daily,
+  uptoDay,
+  activeDay,
+  hrefFor,
+  biggestDay,
+}: {
+  month: string;
+  /** Spent on each day of the month, index 0 = the 1st. */
+  daily: number[];
+  /** Last day with figures (today in the current month). */
+  uptoDay: number;
+  activeDay: string | null;
+  /** Link that filters Transactions to one day (null clears it). */
+  hrefFor: (day: string | null) => string;
+  biggestDay: { day: string; amount: number; what: string } | null;
+}) {
+  const first = new Date(`${month}-01T00:00:00Z`).getUTCDay(); // 0 = Sunday
+  const blanks = (first + 6) % 7; // Monday-first grid
+  const noSpend = daily.slice(0, uptoDay).filter((v) => v < 0.01).length;
+  const dayISO = (n: number) => `${month}-${String(n).padStart(2, "0")}`;
+  const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", timeZone: "UTC" });
+
+  return (
+    <Card className="brut-shadow">
+      <CardHeader
+        title="Where the days went"
+        description="Each day shaded by what you spent. Tap one to see its expenses."
+        className="mb-3"
+      />
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+          <span key={d} className="text-center font-display text-[11px] font-bold text-muted">
+            <span className="sm:hidden">{d[0]}</span>
+            <span className="hidden sm:inline">{d}</span>
+          </span>
+        ))}
+        {Array.from({ length: blanks }, (_, i) => (
+          <span key={`b${i}`} aria-hidden />
+        ))}
+        {daily.map((amount, i) => {
+          const n = i + 1;
+          const iso = dayISO(n);
+          const past = n <= uptoDay;
+          if (!past) {
+            return (
+              <span
+                key={iso}
+                className="flex aspect-square flex-col rounded-md border-2 border-dashed border-ink/20 p-1 text-[11px] font-bold text-muted sm:aspect-auto sm:h-14"
+              >
+                {n}
+              </span>
+            );
+          }
+          const step = stepFor(amount);
+          const active = activeDay === iso;
+          return (
+            <Link
+              key={iso}
+              href={hrefFor(active ? null : iso)}
+              scroll={false}
+              aria-label={`${weekday(iso)}: ${formatEUR(amount)}`}
+              aria-current={active ? "true" : undefined}
+              title={`${weekday(iso)}: ${formatEUR(amount)}`}
+              className={`flex aspect-square flex-col justify-between rounded-md p-1 text-[11px] font-bold sm:aspect-auto sm:h-14 sm:p-1.5 ${step.ink} ${
+                active || n === uptoDay ? "outline outline-[3px] outline-offset-1 outline-ink" : ""
+              }`}
+              style={{ backgroundColor: step.color }}
+            >
+              <span>{n}</span>
+              {amount >= 0.01 ? <span className="hidden font-semibold sm:block">{formatEUR(amount)}</span> : null}
+            </Link>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-muted" aria-hidden>
+        <span>€0</span>
+        {SPEND_STEPS.map((s) => (
+          <span key={s.color} className="h-3 w-5 rounded-sm" style={{ backgroundColor: s.color }} />
+        ))}
+        <span>€150+</span>
+      </div>
+      <dl className="mt-3 space-y-1 border-t-2 border-ink pt-2.5 text-sm">
+        {biggestDay ? (
+          <div className="flex justify-between gap-3">
+            <dt>
+              Biggest day: <b>{weekday(biggestDay.day)}</b> · {biggestDay.what}
+            </dt>
+            <dd className="shrink-0 font-bold">{formatEUR(biggestDay.amount)}</dd>
+          </div>
+        ) : null}
+        <div className="flex justify-between gap-3">
+          <dt>{noSpend} no-spend {noSpend === 1 ? "day" : "days"}</dt>
+          {noSpend > 0 ? <dd className="font-bold text-green">nice</dd> : null}
+        </div>
+      </dl>
     </Card>
   );
 }
@@ -409,6 +543,54 @@ const TYPE_LABEL: Record<string, string> = {
 export type NetWorthAccount = { name: string; type: string; balance: number; currency: string };
 export type NetWorthPoint = { month: string; value: number };
 
+// Warm stone tones for the cairn: identity comes from each stone's label, not its colour.
+const STONE_TONES = ["#ddd2bf", "#c9bca4", "#e2d8c5", "#d4c8b2", "#e9e1d2", "#cdc1ab", "#e6dccb", "#d9cfbd", "#efe8da"];
+
+/**
+ * Savings as a cairn: one stone per kind of saving, biggest at the bottom.
+ * Width follows the square root of the share, so small stones stay readable.
+ */
+function SavingsCairn({ stones, total, currency }: { stones: { type: string; value: number }[]; total: number; currency: Currency }) {
+  if (stones.length === 0) return null;
+  const stack = [...stones].sort((a, b) => a.value - b.value); // top first
+  const max = stack[stack.length - 1].value;
+  return (
+    <figure className="mt-4">
+      <figcaption className="sr-only">
+        {`${currency} savings by kind: ${stones.map((s) => `${TYPE_LABEL[s.type] ?? s.type} ${formatMoney(s.value, currency)}`).join(", ")}.`}
+      </figcaption>
+      <div className="flex flex-col items-center" aria-hidden>
+        {stack.map((stone, i) => {
+          const share = Math.sqrt(stone.value / max);
+          const tilt = (i % 2 === 0 ? -1 : 1) * (1 + (i % 3));
+          return (
+            <div
+              key={stone.type}
+              className="relative flex flex-col items-center justify-center border-[3px] border-ink px-3 text-center"
+              style={{
+                width: `max(8.5rem, ${Math.round(38 + share * 62)}%)`,
+                height: `${Math.round(2.6 + share * 1.6)}rem`,
+                marginTop: i === 0 ? 0 : "-0.35rem",
+                borderRadius: "48% 52% 46% 54% / 58% 55% 45% 42%",
+                background: STONE_TONES[(stack.length - 1 - i) % STONE_TONES.length],
+                transform: `rotate(${tilt}deg)`,
+                zIndex: stack.length - i,
+                boxShadow: i === stack.length - 1 ? "0 4px 0 var(--ink)" : undefined,
+              }}
+            >
+              <span className="font-display text-xs font-bold leading-tight">{TYPE_LABEL[stone.type] ?? stone.type}</span>
+              <span className="private-value text-[11px] font-semibold leading-tight">
+                {formatMoney(stone.value, currency)} · {Math.round(pct(stone.value, total))}%
+              </span>
+            </div>
+          );
+        })}
+        <div className="-mt-1 h-2.5 w-[95%] rounded-[50%] bg-ink/10" />
+      </div>
+    </figure>
+  );
+}
+
 export function NetWorth({
   accounts,
   history,
@@ -433,7 +615,7 @@ export function NetWorth({
         storageKey={FINANCE_PRIVACY_KEY}
         label="net worth amounts"
         title="Net worth"
-        description="Everything you’ve saved, including emergency funds, by currency."
+        description="Your cairn: everything you’ve saved, one stone per kind, biggest at the bottom."
       >
 
         {combined !== null ? (
@@ -478,20 +660,7 @@ export function NetWorth({
                       )}
                     </div>
                   </div>
-                  <ul className="mt-3 space-y-1.5">
-                    {byType.map(({ type, value }) => (
-                      <li key={type} className="grid grid-cols-[6rem_minmax(0,1fr)_auto] items-center gap-2 text-xs sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
-                        <span className="truncate font-bold uppercase text-muted">{TYPE_LABEL[type] ?? type}</span>
-                        <span className="h-2.5 overflow-hidden rounded-full bg-surface">
-                          <span
-                            className="block h-full rounded-full bg-orange"
-                            style={{ width: `${Math.max(2, pct(value, total))}%` }}
-                          />
-                        </span>
-                        <span className="private-value font-bold">{formatMoney(value, currency)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <SavingsCairn stones={byType} total={total} currency={currency} />
                 </section>
               );
             })}

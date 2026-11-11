@@ -8,9 +8,15 @@ import { EXPENSE_CATEGORIES } from "@/lib/financeCategories";
 export function FinanceEntryModal({
   type,
   defaultDate,
+  triggerLabel,
+  triggerClassName,
 }: {
   type: "income" | "expense";
   defaultDate: string;
+  /** Replaces the default "+ Add income" button text. */
+  triggerLabel?: string;
+  /** Replaces the default button with a plain button styled by this class. */
+  triggerClassName?: string;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -23,13 +29,15 @@ export function FinanceEntryModal({
 
   return (
     <>
-      <Button
-        type="button"
-        variant={isExpense ? "pink" : "green"}
-        onClick={() => dialogRef.current?.showModal()}
-      >
-        + Add {label}
-      </Button>
+      {triggerClassName ? (
+        <button type="button" className={triggerClassName} onClick={() => dialogRef.current?.showModal()}>
+          {triggerLabel ?? `+ Add ${label}`}
+        </button>
+      ) : (
+        <Button type="button" variant={isExpense ? "pink" : "green"} onClick={() => dialogRef.current?.showModal()}>
+          {triggerLabel ?? `+ Add ${label}`}
+        </Button>
+      )}
 
       <dialog
         ref={dialogRef}

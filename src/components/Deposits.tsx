@@ -170,7 +170,21 @@ function DepositItem({ row }: { row: DepositRow }) {
             <p className="truncate text-xs font-semibold text-muted">
               {terms && summary ? metaLine(row as FullRow) : "No rate or dates yet"}
             </p>
-            {summary ? (
+            {summary && terms?.type === "rd" && summary.instalmentsTotal <= 36 ? (
+              // An RD shows each monthly deduction as a box: filled = paid.
+              <span
+                className="mt-2 grid gap-0.5"
+                style={{ gridTemplateColumns: `repeat(${summary.instalmentsTotal}, minmax(0, 1fr))` }}
+                aria-hidden
+              >
+                {Array.from({ length: summary.instalmentsTotal }, (_, i) => (
+                  <span
+                    key={i}
+                    className={clsx("h-2.5 rounded-sm border border-ink", i < summary.instalmentsPaid ? "bg-blue" : "bg-background")}
+                  />
+                ))}
+              </span>
+            ) : summary ? (
               <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-background" aria-hidden>
                 <span
                   className={clsx("block h-full rounded-full", summary.status === "matured" ? "bg-green" : "bg-orange")}
@@ -212,6 +226,28 @@ function DepositItem({ row }: { row: DepositRow }) {
   );
 }
 
+/** "Coming back to you": the next deposit to mature, as a ticket with a day countdown. */
+function MaturityTicket({ row }: { row: FullRow }) {
+  const { terms, summary, currency } = row;
+  return (
+    <div className="brut-border brut-shadow mb-4 flex overflow-hidden rounded-lg bg-yellow" role="group" aria-label="Next deposit to mature">
+      <div className="min-w-0 flex-1 px-4 py-3">
+        <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em]">
+          Coming back to you · {terms.type === "rd" ? "RD" : "FD"} · {formatRate(terms.rate)}
+        </p>
+        <p className="truncate font-display text-xl font-bold">{row.name}</p>
+        <p className="text-sm font-semibold">Matures {formatDate(terms.maturity)}</p>
+      </div>
+      <div aria-hidden className="border-l-[3px] border-dashed border-ink" />
+      <div className="flex w-28 shrink-0 flex-col items-center justify-center bg-surface px-2 py-3 text-center">
+        <p className="font-display text-3xl font-bold leading-none">{Math.max(0, summary.daysLeft)}</p>
+        <p className="font-display text-[11px] font-bold uppercase tracking-wider">{summary.daysLeft === 1 ? "day" : "days"}</p>
+        <p className="private-value mt-1 text-xs font-bold">{formatMoney(summary.maturityValue, currency)}</p>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_ORDER = { matured: 0, soon: 1, active: 2, upcoming: 3 } as const;
 
 function Tile({ label, children }: { label: string; children: React.ReactNode }) {
@@ -235,6 +271,11 @@ export function DepositsCard({ rows }: { rows: DepositRow[] }) {
   ];
 
   const live = withTerms.filter((row) => row.summary.status !== "matured");
+  // The next deposit to come back within ~4 months gets the ticket.
+  const nextUp =
+    [...live]
+      .filter((row) => row.summary.status !== "upcoming" && row.summary.daysLeft <= 120)
+      .sort((a, b) => a.summary.daysLeft - b.summary.daysLeft)[0] ?? null;
   const deposited = sumByCurrency(live, (r) => r.summary.deposited, (r) => r.currency);
   const interest = sumByCurrency(live, (r) => r.summary.interestSoFar, (r) => r.currency);
   const maturingSoon = live.filter((r) => r.summary.daysLeft <= UPCOMING_DAYS);
@@ -286,6 +327,8 @@ export function DepositsCard({ rows }: { rows: DepositRow[] }) {
             </Tile>
           </dl>
         ) : null}
+
+        {nextUp ? <MaturityTicket row={nextUp} /> : null}
 
         {matured > 0 ? (
           <p className="mb-3 rounded-md bg-yellow/50 px-3 py-2 text-sm font-bold">
