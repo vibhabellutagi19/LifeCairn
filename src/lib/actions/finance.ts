@@ -1,18 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   financeAccounts,
+  financeBudgets,
   financeEntries,
+  financeRecurring,
   financeSnapshotItems,
   financeSnapshots,
   financeTargets,
+  userSettings,
 } from "@/db/schema";
-import { isExpenseCategory, parseTags } from "@/lib/financeCategories";
+import { EXPENSE_CATEGORIES, isExpenseCategory, parseTags } from "@/lib/financeCategories";
 import { requireUserId } from "@/lib/auth";
 import { isCurrency } from "@/lib/format";
+import { monthRangeISO } from "@/lib/dates";
 import { isDepositType, isInterestPayout } from "@/lib/deposits";
 import type { HistoryImportPayload } from "@/lib/snapshotImport";
 
@@ -352,17 +356,31 @@ export async function importSnapshotHistory(payload: HistoryImportPayload) {
   return { ok: true as const, months: months.length };
 }
 
-export async function createFinanceEntry(formData: FormData) {
+export type ActionResult = { ok: true } | { ok: false; error: string };
+
+/** Amount typed in a form: "1,234.50" or "12,5" (decimal comma) → number, or null. */
+function parseAmount(raw: unknown) {
+  let text = String(raw ?? "").trim().replace(/[€₹\s]/g, "");
+  // A single comma followed by 1–2 digits is a decimal comma (12,5 → 12.5); otherwise commas group thousands.
+  text = /^\d+,\d{1,2}$/.test(text) ? text.replace(",", ".") : text.replaceAll(",", "");
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
+  const n = Number(text);
+  return n > 0 && n < 1e10 ? n : null;
+}
+
+const isISODate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+export async function createFinanceEntry(formData: FormData): Promise<ActionResult> {
   const userId = await requireUserId();
-  const source = String(formData.get("source") || "").trim();
-  const amountRaw = String(formData.get("amount") || "").replaceAll(",", "").trim();
-  const amount = Number(amountRaw);
-  if (!source || !amountRaw || !Number.isFinite(amount) || amount <= 0) return;
+  const source = String(formData.get("source") || "").trim().slice(0, 200);
+  if (!source) return { ok: false, error: "Say what it was." };
+  const amount = parseAmount(formData.get("amount"));
+  if (amount === null) return { ok: false, error: "That amount doesn't look right. Use a number like 12.50." };
   const typeRaw = String(formData.get("type") || "income");
-  if (typeRaw !== "income" && typeRaw !== "expense") return;
+  if (typeRaw !== "income" && typeRaw !== "expense") return { ok: false, error: "Unknown entry type." };
   const type: "income" | "expense" = typeRaw;
   const date = String(formData.get("date") || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  if (!isISODate(date)) return { ok: false, error: "Pick a date." };
   const categoryRaw = String(formData.get("category") || "Other");
   const category = type === "expense" && isExpenseCategory(categoryRaw) ? categoryRaw : "Other";
   const notes = String(formData.get("notes") || "").trim();
@@ -379,6 +397,7 @@ export async function createFinanceEntry(formData: FormData) {
     tags,
   });
   revalidateAll();
+  return { ok: true };
 }
 
 export type BulkExpenseRow = {
@@ -420,19 +439,20 @@ export async function createFinanceEntries(rows: BulkExpenseRow[]) {
   return values.length;
 }
 
-export async function updateFinanceEntry(id: number, formData: FormData) {
+export async function updateFinanceEntry(id: number, formData: FormData): Promise<ActionResult> {
   const userId = await requireUserId();
-  const source = String(formData.get("source") || "").trim();
-  const amount = Number(String(formData.get("amount") || "").replaceAll(",", "").trim());
-  if (!source || !Number.isFinite(amount) || amount <= 0) return;
+  const source = String(formData.get("source") || "").trim().slice(0, 200);
+  if (!source) return { ok: false, error: "Say what it was." };
+  const amount = parseAmount(formData.get("amount"));
+  if (amount === null) return { ok: false, error: "That amount doesn't look right. Use a number like 12.50." };
   const date = String(formData.get("date") || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  if (!isISODate(date)) return { ok: false, error: "Pick a date." };
   const notes = String(formData.get("notes") || "").trim();
 
   const existing = await db.query.financeEntries.findFirst({
     where: and(eq(financeEntries.id, id), eq(financeEntries.userId, userId)),
   });
-  if (!existing) return;
+  if (!existing) return { ok: false, error: "That entry no longer exists." };
   const categoryRaw = String(formData.get("category") || "Other");
   const category =
     existing.type === "expense" && isExpenseCategory(categoryRaw) ? categoryRaw : "Other";
@@ -449,6 +469,7 @@ export async function updateFinanceEntry(id: number, formData: FormData) {
     })
     .where(and(eq(financeEntries.id, id), eq(financeEntries.userId, userId)));
   revalidateAll();
+  return { ok: true };
 }
 
 export async function deleteFinanceEntry(id: number) {
@@ -459,21 +480,159 @@ export async function deleteFinanceEntry(id: number) {
   revalidateAll();
 }
 
-export async function setMonthlyTarget(month: string, formData: FormData) {
+/** Income target for a month; a blank amount removes it. */
+export async function setMonthlyTarget(month: string, formData: FormData): Promise<ActionResult> {
   const userId = await requireUserId();
-  const targetAmount = String(formData.get("targetAmount") || "").trim();
-  if (!targetAmount) return;
-
-  const existing = await db.query.financeTargets.findFirst({
-    where: and(eq(financeTargets.userId, userId), eq(financeTargets.month, month)),
-  });
-  if (existing) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { ok: false, error: "Unknown month." };
+  const raw = String(formData.get("targetAmount") || "").trim();
+  if (!raw) {
     await db
-      .update(financeTargets)
-      .set({ targetAmount })
+      .delete(financeTargets)
       .where(and(eq(financeTargets.userId, userId), eq(financeTargets.month, month)));
-  } else {
-    await db.insert(financeTargets).values({ userId, month, targetAmount });
+    revalidateAll();
+    return { ok: true };
   }
+  const amount = parseAmount(raw);
+  if (amount === null) return { ok: false, error: "Use a number like 4000." };
+  await db
+    .insert(financeTargets)
+    .values({ userId, month, targetAmount: amount.toFixed(2) })
+    .onConflictDoUpdate({
+      target: [financeTargets.userId, financeTargets.month],
+      set: { targetAmount: amount.toFixed(2) },
+    });
   revalidateAll();
+  return { ok: true };
+}
+
+/** Monthly limits per category from `budget-<Category>` fields; blank removes one. */
+export async function saveBudgets(formData: FormData): Promise<ActionResult> {
+  const userId = await requireUserId();
+  const set: { category: string; amount: string }[] = [];
+  const cleared: string[] = [];
+  for (const category of EXPENSE_CATEGORIES) {
+    const raw = String(formData.get(`budget-${category}`) ?? "").trim();
+    if (!raw) {
+      cleared.push(category);
+      continue;
+    }
+    const amount = parseAmount(raw);
+    if (amount === null) return { ok: false, error: `The ${category} budget doesn't look like a number.` };
+    set.push({ category, amount: amount.toFixed(2) });
+  }
+  await db.transaction(async (tx) => {
+    if (cleared.length > 0) {
+      await tx
+        .delete(financeBudgets)
+        .where(and(eq(financeBudgets.userId, userId), inArray(financeBudgets.category, cleared)));
+    }
+    for (const { category, amount } of set) {
+      await tx
+        .insert(financeBudgets)
+        .values({ userId, category, amount })
+        .onConflictDoUpdate({
+          target: [financeBudgets.userId, financeBudgets.category],
+          set: { amount, updatedAt: new Date() },
+        });
+    }
+  });
+  revalidateAll();
+  return { ok: true };
+}
+
+/** A regular income or expense (rent, salary, Netflix) to add each month in one tap. */
+export async function createRecurring(formData: FormData): Promise<ActionResult> {
+  const userId = await requireUserId();
+  const typeRaw = String(formData.get("type") || "expense");
+  if (typeRaw !== "income" && typeRaw !== "expense") return { ok: false, error: "Unknown entry type." };
+  const source = String(formData.get("source") || "").trim().slice(0, 200);
+  if (!source) return { ok: false, error: "Give it a name, like Rent." };
+  const amount = parseAmount(formData.get("amount"));
+  if (amount === null) return { ok: false, error: "That amount doesn't look right." };
+  const day = Number(formData.get("dayOfMonth") || 1);
+  if (!Number.isInteger(day) || day < 1 || day > 28) return { ok: false, error: "Pick a day from 1 to 28." };
+  const categoryRaw = String(formData.get("category") || "Other");
+  await db.insert(financeRecurring).values({
+    userId,
+    type: typeRaw,
+    source,
+    amount: amount.toFixed(2),
+    category: typeRaw === "expense" && isExpenseCategory(categoryRaw) ? categoryRaw : "Other",
+    tags: typeRaw === "expense" ? parseTags(String(formData.get("tags") || "")) : [],
+    dayOfMonth: day,
+  });
+  revalidateAll();
+  return { ok: true };
+}
+
+export async function deleteRecurring(id: number) {
+  const userId = await requireUserId();
+  await db
+    .delete(financeRecurring)
+    .where(and(eq(financeRecurring.id, id), eq(financeRecurring.userId, userId)));
+  revalidateAll();
+}
+
+/**
+ * Add the given recurring items to a month, dated on their day of the month.
+ * Items already added that month are skipped. Returns how many were added.
+ */
+export async function addRecurringForMonth(month: string, ids: number[]): Promise<number> {
+  const userId = await requireUserId();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || ids.length === 0) return 0;
+  const items = await db
+    .select()
+    .from(financeRecurring)
+    .where(and(eq(financeRecurring.userId, userId), inArray(financeRecurring.id, ids.slice(0, 100))));
+  if (items.length === 0) return 0;
+  const already = await db
+    .select({ recurringId: financeEntries.recurringId })
+    .from(financeEntries)
+    .where(
+      and(
+        eq(financeEntries.userId, userId),
+        inArray(
+          financeEntries.recurringId,
+          items.map((item) => item.id)
+        ),
+        gte(financeEntries.date, monthRangeISO(month).start),
+        lte(financeEntries.date, monthRangeISO(month).end)
+      )
+    );
+  const done = new Set(already.map((row) => row.recurringId));
+  const values = items
+    .filter((item) => !done.has(item.id))
+    .map((item) => ({
+      userId,
+      type: item.type,
+      source: item.source,
+      category: item.category,
+      amount: item.amount,
+      tags: item.tags,
+      date: `${month}-${String(item.dayOfMonth).padStart(2, "0")}`,
+      recurringId: item.id,
+    }));
+  if (values.length > 0) {
+    await db.insert(financeEntries).values(values);
+    revalidateAll();
+  }
+  return values.length;
+}
+
+/** ₹ per € for showing INR and EUR savings as one total; blank removes it. */
+export async function setEurToInr(formData: FormData): Promise<ActionResult> {
+  const userId = await requireUserId();
+  const raw = String(formData.get("eurToInr") || "").trim();
+  let rate: string | null = null;
+  if (raw) {
+    const n = Number(raw.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) return { ok: false, error: "Use a rate like 104.5." };
+    rate = n.toFixed(4);
+  }
+  await db
+    .insert(userSettings)
+    .values({ userId, eurToInr: rate })
+    .onConflictDoUpdate({ target: userSettings.userId, set: { eurToInr: rate, updatedAt: new Date() } });
+  revalidateAll();
+  return { ok: true };
 }

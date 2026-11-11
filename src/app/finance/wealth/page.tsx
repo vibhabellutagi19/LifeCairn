@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { financeAccounts, financeSnapshotItems, financeSnapshots } from "@/db/schema";
+import { financeAccounts, financeSnapshotItems, financeSnapshots, userSettings } from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { CardHeader } from "@/components/FinanceHeadings";
 import { FinanceMonthBar } from "@/components/FinanceMonthBar";
@@ -11,6 +11,8 @@ import { SavingAccountControls } from "@/components/AccountRow";
 import { NewSavingModal } from "@/components/NewSavingModal";
 import { DepositsCard, type DepositRow } from "@/components/Deposits";
 import { SnapshotHistoryImport } from "@/components/SnapshotHistoryImport";
+import { WealthGrowth, type GrowthPoint } from "@/components/WealthGrowth";
+import { EurRateForm } from "@/components/EurRateForm";
 import { depositTermsOf, isDepositType, summarizeDeposit } from "@/lib/deposits";
 import { saveMonthlyFinanceSnapshot } from "@/lib/actions/finance";
 import { requireModule } from "@/lib/moduleSettings";
@@ -29,7 +31,7 @@ export default async function WealthPage({
   const selectedMonth = resolveMonth((await searchParams).month);
   const monthLabel = formatMonthLabel(selectedMonth);
 
-  const [accounts, snapshots, allSnapshotRows] = await Promise.all([
+  const [accounts, snapshots, allSnapshotRows, settings] = await Promise.all([
     db.select().from(financeAccounts).where(eq(financeAccounts.userId, userId)).orderBy(financeAccounts.id),
     db
       .select()
@@ -50,7 +52,9 @@ export default async function WealthPage({
       .innerJoin(financeSnapshots, eq(financeSnapshotItems.snapshotId, financeSnapshots.id))
       .where(eq(financeSnapshotItems.userId, userId))
       .orderBy(desc(financeSnapshots.month), financeSnapshotItems.sortOrder),
+    db.query.userSettings.findFirst({ where: eq(userSettings.userId, userId) }),
   ]);
+  const eurToInr = settings?.eurToInr ? Number(settings.eurToInr) : null;
 
   const selectedSnapshot = snapshots.find((snapshot) => snapshot.month === selectedMonth);
   const selectedRows = allSnapshotRows.filter((row) => row.month === selectedMonth);
@@ -114,6 +118,22 @@ export default async function WealthPage({
   ) as Record<Currency, NetWorthPoint[]>;
 
   const today = todayISO();
+  // Growth chart: every snapshot, everything included, per currency, oldest first.
+  const growthSeries = CURRENCIES.map((currency) => ({
+    currency,
+    points: [...snapshots]
+      .reverse()
+      .map((snapshot): GrowthPoint => {
+        const rows = allSnapshotRows.filter((row) => row.month === snapshot.month && row.currency === currency);
+        return {
+          month: snapshot.month,
+          invested: rows.reduce((sum, row) => sum + Number(row.investedAmount), 0),
+          present: rows.reduce((sum, row) => sum + Number(row.currentValue), 0),
+        };
+      })
+      .filter((point) => point.present > 0 || point.invested > 0),
+  }));
+
   const defaultSnapshotDate =
     selectedSnapshot?.snapshotDate ??
     (selectedMonth === currentMonthKey() ? today : monthRangeISO(selectedMonth).end);
@@ -205,6 +225,12 @@ export default async function WealthPage({
               currency: a.currency,
             }))}
             history={netWorthHistory}
+            eurToInr={eurToInr}
+            rateEditor={
+              accounts.some((a) => a.currency === "EUR") && accounts.some((a) => a.currency === "INR") ? (
+                <EurRateForm rate={eurToInr} />
+              ) : null
+            }
           />
           <Card className="flex flex-col">
             <CardHeader
@@ -230,7 +256,15 @@ export default async function WealthPage({
             </dl>
             {snapshots.length > 0 ? (
               <div className="mt-auto pt-5">
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted">Snapshots</p>
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Snapshots</p>
+                  <a
+                    href="/finance/export/snapshots"
+                    className="text-[11px] font-bold uppercase tracking-wide text-blue hover:underline"
+                  >
+                    Download CSV
+                  </a>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {snapshots.map((snapshot) => (
                     <Link
@@ -248,6 +282,8 @@ export default async function WealthPage({
             ) : null}
           </Card>
         </div>
+
+        <WealthGrowth series={growthSeries} />
 
         {depositRows.length > 0 ? (
           <div id="deposits" className="scroll-mt-48 md:scroll-mt-24">

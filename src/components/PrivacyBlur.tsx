@@ -23,6 +23,56 @@ function subscribe(onChange: () => void) {
   };
 }
 
+/** The one setting used by every finance amount that can be hidden. */
+export const FINANCE_PRIVACY_KEY = "lifecairn:finance:networth-hidden";
+
+const BLUR =
+  "[&_.private-value]:pointer-events-none [&_.private-value]:select-none [&_.private-value]:blur-md";
+
+function usePrivacyHidden(storageKey: string) {
+  return useSyncExternalStore(subscribe, () => readHidden(storageKey), () => false);
+}
+
+function setHidden(storageKey: string, hidden: boolean) {
+  try {
+    localStorage.setItem(storageKey, hidden ? "hidden" : "shown");
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+/** Blurs `.private-value` elements inside it when the setting says hidden. No header. */
+export function PrivacyScope({
+  storageKey = FINANCE_PRIVACY_KEY,
+  className,
+  children,
+}: {
+  storageKey?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const hidden = usePrivacyHidden(storageKey);
+  return <div className={clsx(className, hidden && BLUR)}>{children}</div>;
+}
+
+/** The eye button on its own, for headers outside a PrivacyBlur card. */
+export function PrivacyToggle({ storageKey = FINANCE_PRIVACY_KEY, label }: { storageKey?: string; label: string }) {
+  const hidden = usePrivacyHidden(storageKey);
+  return (
+    <button
+      type="button"
+      onClick={() => setHidden(storageKey, !hidden)}
+      aria-pressed={hidden}
+      aria-label={hidden ? `Show ${label}` : `Hide ${label}`}
+      title={hidden ? `Show ${label}` : `Hide ${label}`}
+      className="brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface hover:bg-yellow"
+    >
+      {hidden ? <EyeOffIcon /> : <EyeIcon />}
+    </button>
+  );
+}
+
 /**
  * Wraps a section whose sensitive values carry the `private-value` class and
  * adds an eye toggle that blurs them. The choice is remembered per browser.
@@ -40,40 +90,13 @@ export function PrivacyBlur({
   description?: string;
   children: React.ReactNode;
 }) {
-  const hidden = useSyncExternalStore(subscribe, () => readHidden(storageKey), () => false);
-
-  const toggle = () => {
-    try {
-      localStorage.setItem(storageKey, hidden ? "shown" : "hidden");
-    } catch {
-      return;
-    }
-    window.dispatchEvent(new Event(CHANGE_EVENT));
-  };
-
+  const hidden = usePrivacyHidden(storageKey);
   return (
-    <div
-      className={clsx(
-        "flex flex-1 flex-col",
-        hidden &&
-          "[&_.private-value]:pointer-events-none [&_.private-value]:select-none [&_.private-value]:blur-md"
-      )}
-    >
+    <div className={clsx("flex flex-1 flex-col", hidden && BLUR)}>
       <CardHeader
         title={title}
         description={description}
-        action={
-          <button
-            type="button"
-            onClick={toggle}
-            aria-pressed={hidden}
-            aria-label={hidden ? `Show ${label}` : `Hide ${label}`}
-            title={hidden ? `Show ${label}` : `Hide ${label}`}
-            className="brut-border flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-surface hover:bg-yellow"
-          >
-            {hidden ? <EyeOffIcon /> : <EyeIcon />}
-          </button>
-        }
+        action={<PrivacyToggle storageKey={storageKey} label={label} />}
       />
       {children}
     </div>

@@ -15,6 +15,13 @@
       "when": 1794327878823,
       "tag": "0001_fd_rd_deposits",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794412521959,
+      "tag": "0002_budgets_recurring_rate",
+      "breakpoints": true
     }
   ]
 }

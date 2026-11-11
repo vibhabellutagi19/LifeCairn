@@ -1,20 +1,5 @@
-import { EXPENSE_CATEGORIES, parseTags, type ExpenseCategory } from "@/lib/financeCategories";
+import { EXPENSE_CATEGORIES, guessCategory, parseTags, type ExpenseCategory } from "@/lib/financeCategories";
 import { todayISO } from "@/lib/dates";
-
-// Words that imply a category without being one. Matched against the
-// expense description only to guess; they are never removed from it.
-const CATEGORY_HINTS: Record<string, ExpenseCategory> = {
-  groceries: "Food", grocery: "Food", lidl: "Food", aldi: "Food", coffee: "Food", lunch: "Food",
-  dinner: "Food", breakfast: "Food", restaurant: "Food", cafe: "Food", bakery: "Food",
-  uber: "Transport", taxi: "Transport", bus: "Transport", train: "Transport", metro: "Transport",
-  fuel: "Transport", petrol: "Transport", parking: "Transport",
-  rent: "Housing", electricity: "Housing", internet: "Housing",
-  doctor: "Health", pharmacy: "Health", medicine: "Health", gym: "Health",
-  netflix: "Subscriptions", spotify: "Subscriptions", subscription: "Subscriptions",
-  flight: "Travel", hotel: "Travel", airbnb: "Travel",
-  amazon: "Shopping", clothes: "Shopping",
-  tax: "Taxes",
-};
 
 export type ParsedEntry = {
   amount: number;
@@ -157,7 +142,7 @@ export function parseEntry(text: string, kind: "expense" | "income", today: stri
       }
     }
     if (!category) {
-      const hint = words.map((w) => CATEGORY_HINTS[w.toLowerCase()]).find(Boolean);
+      const hint = guessCategory(words.join(" "));
       if (hint) {
         category = hint;
         guessed = true;

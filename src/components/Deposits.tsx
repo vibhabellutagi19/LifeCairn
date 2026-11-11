@@ -4,7 +4,7 @@
 
 import { clsx } from "clsx";
 import { Card } from "@/components/ui";
-import { PrivacyBlur } from "@/components/PrivacyBlur";
+import { FINANCE_PRIVACY_KEY, PrivacyBlur } from "@/components/PrivacyBlur";
 import { DepositTermsEditor, type DepositTermsValues } from "@/components/DepositTerms";
 import { PAYOUT_LABEL, type DepositSummary, type DepositTerms } from "@/lib/deposits";
 import { formatCurrencyTotals, formatMoney, sumByCurrency } from "@/lib/format";
@@ -248,7 +248,7 @@ export function DepositsCard({ rows }: { rows: DepositRow[] }) {
   return (
     <Card className="flex flex-col">
       <PrivacyBlur
-        storageKey="lifecairn:finance:networth-hidden"
+        storageKey={FINANCE_PRIVACY_KEY}
         label="deposit amounts"
         title="Deposits"
         description="FDs and RDs: what they're worth and when they mature. Tap one for details."

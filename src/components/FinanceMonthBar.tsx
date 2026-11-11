@@ -1,6 +1,5 @@
 import Link from "next/link";
-import Form from "next/form";
-import { Button, Input } from "@/components/ui";
+import { MonthJump } from "@/components/MonthJump";
 import { currentMonthKey, shiftMonthKey } from "@/lib/dates";
 import { financeHref, formatMonthLabel } from "@/lib/financeView";
 
@@ -40,36 +39,22 @@ export function FinanceMonthBar({
           <div className="min-w-[6.5rem] text-center sm:min-w-[9.5rem]">
             <p className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-muted">
               {isCurrent ? "This month" : (
-                <Link href={path} className="text-blue hover:underline sm:pointer-events-none sm:text-muted">
-                  <span className="sm:hidden">Back to today</span>
-                  <span className="hidden sm:inline">Viewing</span>
+                <Link href={path} className="relative z-10 text-blue hover:underline">
+                  Back to today
                 </Link>
               )}
             </p>
-            <p className="font-display text-lg font-bold leading-tight sm:text-xl">
-              <span className="sm:hidden">{monthName.replace(/ (\d{2})(\d{2})$/, " ’$2")}</span>
-              <span className="hidden sm:inline">{monthName}</span>
-            </p>
+            <MonthJump month={month} path={path}>
+              <span className="flex items-center justify-center gap-1 font-display text-lg font-bold leading-tight sm:text-xl">
+                <span className="sm:hidden">{monthName.replace(/ (\d{2})(\d{2})$/, " ’$2")}</span>
+                <span className="hidden sm:inline">{monthName}</span>
+                <span aria-hidden className="text-[10px] text-muted">▼</span>
+              </span>
+            </MonthJump>
           </div>
           <Link href={financeHref(next, path)} aria-label={`Next month, ${formatMonthLabel(next)}`} className={arrow}>
             ›
           </Link>
-          {!isCurrent ? (
-            <Link href={path} className="hidden px-1 text-xs font-bold uppercase tracking-wide text-blue hover:underline sm:inline">
-              Today
-            </Link>
-          ) : null}
-          <Form action={path} className="ml-1 hidden items-center gap-1 lg:flex">
-            <Input
-              type="month"
-              name="month"
-              aria-label="Jump to month"
-              defaultValue={month}
-              required
-              className="min-h-10 w-auto py-1"
-            />
-            <Button type="submit" variant="ghost" size="sm">Go</Button>
-          </Form>
         </div>
         {mobileAction ? <div className="shrink-0 sm:hidden">{mobileAction}</div> : null}
         {children ? (

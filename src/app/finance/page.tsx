@@ -2,10 +2,20 @@ import Link from "next/link";
 import Form from "next/form";
 import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { financeAccounts, financeEntries, financeSnapshots } from "@/db/schema";
+import {
+  financeAccounts,
+  financeBudgets,
+  financeEntries,
+  financeRecurring,
+  financeSnapshots,
+  financeTargets,
+  userSettings,
+} from "@/db/schema";
 import { Button, Card, EmptyState, Input, PageHeader } from "@/components/ui";
 import { CardHeader, SectionHeader } from "@/components/FinanceHeadings";
-import { MonthPulse, TrendBars, type MonthTrend } from "@/components/FinanceDashboard";
+import { MonthPulse, TrendBars, YearSummary, type MonthTrend } from "@/components/FinanceDashboard";
+import { RecurringEntries, type RecurringItem } from "@/components/RecurringEntries";
+import { PrivacyScope, PrivacyToggle } from "@/components/PrivacyBlur";
 import { FinanceMonthBar } from "@/components/FinanceMonthBar";
 import { QuickExpense } from "@/components/QuickExpense";
 import { requireModule } from "@/lib/moduleSettings";
@@ -14,8 +24,8 @@ import { ExpenseBreakdown } from "@/components/ExpenseInsights";
 import { FinanceEntryModal } from "@/components/FinanceEntryModal";
 import { FinanceEntryRow } from "@/components/FinanceEntryRow";
 import { currentMonthKey, daysInMonthISO, monthRangeISO, shiftMonthKey, todayISO } from "@/lib/dates";
-import { EXPENSE_CATEGORIES, categoryColor } from "@/lib/financeCategories";
-import { CURRENCIES, formatDateLong, formatEUR, formatMoney, sumByCurrency } from "@/lib/format";
+import { EXPENSE_CATEGORIES, categoryColor, isExpenseCategory, type Merchant } from "@/lib/financeCategories";
+import { CURRENCIES, formatDateLong, formatDateShort, formatEUR, formatMoney, sumByCurrency } from "@/lib/format";
 import { financeHref, formatMonthLabel, resolveMonth } from "@/lib/financeView";
 import { depositTermsOf, summarizeDeposit } from "@/lib/deposits";
 
@@ -40,10 +50,10 @@ function sumAmounts(rows: { amount: string }[]) {
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; q?: string; tag?: string }>;
+  searchParams: Promise<{ month?: string; q?: string; tag?: string; cat?: string }>;
 }) {
   const userId = await requireModule("finance");
-  const { month: requestedMonth, q: rawQuery, tag: rawTag } = await searchParams;
+  const { month: requestedMonth, q: rawQuery, tag: rawTag, cat: rawCat } = await searchParams;
   const monthKey = currentMonthKey();
   const selectedMonth = resolveMonth(requestedMonth);
   const { start, end } = monthRangeISO(selectedMonth);
@@ -51,10 +61,26 @@ export default async function FinancePage({
   // Escape LIKE wildcards so a search for "50%" matches literally.
   const pattern = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-  const trendStart = monthRangeISO(shiftMonthKey(selectedMonth, -5)).start;
+  // Trend (six months) and year summary share one grouped query.
+  const year = selectedMonth.slice(0, 4);
+  const sixBack = shiftMonthKey(selectedMonth, -5);
+  const trendStart = monthRangeISO(sixBack < `${year}-01` ? sixBack : `${year}-01`).start;
+  const trendEnd = monthRangeISO(`${year}-12`).end > end ? monthRangeISO(`${year}-12`).end : end;
   const trendMonthExpr = sql<string>`to_char(${financeEntries.date}, 'YYYY-MM')`;
+  const yearAgo = monthRangeISO(shiftMonthKey(monthKey, -12)).start;
 
-  const [accounts, monthEntries, latestSnapshot, searchResults, trendRows] = await Promise.all([
+  const [
+    accounts,
+    monthEntries,
+    latestSnapshot,
+    searchResults,
+    trendRows,
+    budgetRows,
+    recurringRows,
+    targetRow,
+    settings,
+    recentExpenses,
+  ] = await Promise.all([
     db.select().from(financeAccounts).where(eq(financeAccounts.userId, userId)).orderBy(financeAccounts.id),
     db
       .select()
@@ -75,7 +101,6 @@ export default async function FinancePage({
           .where(
             and(
               eq(financeEntries.userId, userId),
-              eq(financeEntries.type, "expense"),
               or(
                 ilike(financeEntries.source, pattern),
                 ilike(financeEntries.notes, pattern),
@@ -95,9 +120,28 @@ export default async function FinancePage({
       })
       .from(financeEntries)
       .where(
-        and(eq(financeEntries.userId, userId), gte(financeEntries.date, trendStart), lte(financeEntries.date, end))
+        and(eq(financeEntries.userId, userId), gte(financeEntries.date, trendStart), lte(financeEntries.date, trendEnd))
       )
       .groupBy(trendMonthExpr, financeEntries.type),
+    db.select().from(financeBudgets).where(eq(financeBudgets.userId, userId)),
+    db
+      .select()
+      .from(financeRecurring)
+      .where(eq(financeRecurring.userId, userId))
+      .orderBy(financeRecurring.dayOfMonth, financeRecurring.id),
+    db.query.financeTargets.findFirst({
+      where: and(eq(financeTargets.userId, userId), eq(financeTargets.month, selectedMonth)),
+    }),
+    db.query.userSettings.findFirst({ where: eq(userSettings.userId, userId) }),
+    // Merchants from the last year, for suggestions and category guesses in Quick log.
+    db
+      .select({ source: financeEntries.source, category: financeEntries.category })
+      .from(financeEntries)
+      .where(
+        and(eq(financeEntries.userId, userId), eq(financeEntries.type, "expense"), gte(financeEntries.date, yearAgo))
+      )
+      .orderBy(desc(financeEntries.date), desc(financeEntries.id))
+      .limit(2000),
   ]);
 
   const incomeEntries = monthEntries.filter((entry) => entry.type === "income");
@@ -114,12 +158,40 @@ export default async function FinancePage({
   const uptoDay = isCurrentMonth ? Number(todayISO().slice(8, 10)) : monthDays.length;
 
   // Six-month trend ending at the selected month.
-  const trendMonths: MonthTrend[] = [-5, -4, -3, -2, -1, 0].map((offset) => {
-    const month = shiftMonthKey(selectedMonth, offset);
+  const monthTrend = (month: string): MonthTrend => {
     const total = (type: "income" | "expense") =>
       Number(trendRows.find((r) => r.month === month && r.type === type)?.total ?? 0);
     return { month, label: formatMonthLabel(month), income: total("income"), expense: total("expense") };
-  });
+  };
+  const trendMonths = [-5, -4, -3, -2, -1, 0].map((offset) => monthTrend(shiftMonthKey(selectedMonth, offset)));
+  const yearMonths = Array.from({ length: 12 }, (_, i) => monthTrend(`${year}-${String(i + 1).padStart(2, "0")}`));
+
+  const budgets = Object.fromEntries(budgetRows.map((b) => [b.category, Number(b.amount)]));
+  const incomeTarget = targetRow ? Number(targetRow.targetAmount) : null;
+  const eurToInr = settings?.eurToInr ? Number(settings.eurToInr) : null;
+  const addedRecurring = new Set(monthEntries.map((entry) => entry.recurringId).filter((id) => id !== null));
+  const recurringItems: RecurringItem[] = recurringRows.map((item) => ({
+    id: item.id,
+    type: item.type,
+    source: item.source,
+    category: item.category,
+    amount: Number(item.amount),
+    dayOfMonth: item.dayOfMonth,
+    added: addedRecurring.has(item.id),
+  }));
+
+  // Most-used merchants first, each with the category used most recently.
+  const merchantStats = new Map<string, Merchant & { count: number }>();
+  for (const row of recentExpenses) {
+    const key = row.source.trim().toLowerCase();
+    const known = merchantStats.get(key);
+    if (known) known.count++;
+    else merchantStats.set(key, { source: row.source.trim(), category: row.category, count: 1 });
+  }
+  const merchants: Merchant[] = [...merchantStats.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 150)
+    .map(({ source, category }) => ({ source, category }));
 
   const expenseByCategory = EXPENSE_CATEGORIES.map((category) => ({
     category,
@@ -141,9 +213,13 @@ export default async function FinancePage({
   const monthTags = [...tagTotals.entries()]
     .map(([tag, t]) => ({ tag, ...t }))
     .sort((a, b) => b.total - a.total);
-  // ?tag= filters the month's expenses (ignored while searching, or if the month doesn't use it).
+  // ?tag= and ?cat= filter the month's expenses (ignored while searching).
   const activeTag = !query && rawTag && tagTotals.has(rawTag) ? rawTag : null;
-  const shownExpenses = activeTag ? expenseEntries.filter((entry) => entry.tags.includes(activeTag)) : expenseEntries;
+  const activeCategory = !query && rawCat && isExpenseCategory(rawCat) ? rawCat : null;
+  const filtering = activeTag !== null || activeCategory !== null;
+  const shownExpenses = expenseEntries.filter(
+    (entry) => (!activeTag || entry.tags.includes(activeTag)) && (!activeCategory || entry.category === activeCategory)
+  );
   const shownTotal = sumAmounts(shownExpenses);
   const activeTagCategories = activeTag
     ? EXPENSE_CATEGORIES.map((category) => ({
@@ -153,8 +229,14 @@ export default async function FinancePage({
         .filter(({ total }) => total > 0)
         .sort((a, b) => b.total - a.total)
     : [];
-  const tagHref = (tag: string | null) =>
-    `${financeHref(selectedMonth)}${tag ? `&${new URLSearchParams({ tag })}` : ""}#transactions`;
+  const filterHref = ({ tag = activeTag, cat = activeCategory }: { tag?: string | null; cat?: string | null }) => {
+    const params = new URLSearchParams({ month: selectedMonth });
+    if (tag) params.set("tag", tag);
+    if (cat) params.set("cat", cat);
+    return `/finance?${params}#transactions`;
+  };
+  const tagHref = (tag: string | null) => filterHref({ tag });
+  const categoryHref = (cat: string | null) => filterHref({ cat });
 
   // Wealth teaser: everything saved (emergency funds included), per currency.
   const netWorth = sumByCurrency(accounts, (a) => a.balance, (a) => a.currency);
@@ -171,7 +253,9 @@ export default async function FinancePage({
   const monthLabel = formatMonthLabel(selectedMonth);
   const expensesByDay = groupBy(shownExpenses, (entry) => entry.date);
   const resultsByMonth = searchResults ? groupBy(searchResults, (entry) => entry.date.slice(0, 7)) : [];
-  const searchTotal = searchResults ? sumAmounts(searchResults) : 0;
+  const searchExpenses = searchResults?.filter((entry) => entry.type === "expense") ?? [];
+  const searchIncome = searchResults?.filter((entry) => entry.type === "income") ?? [];
+  const latestEntries = monthEntries.slice(0, 4);
 
   const sectionLink = "rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:bg-yellow";
   const wealthHref = financeHref(selectedMonth, "/finance/wealth");
@@ -182,10 +266,9 @@ export default async function FinancePage({
         title="Finance"
         subtitle="What came in, what went out, and what you've built up."
         action={
-          // Phones: income and expense side by side, bulk on its own row.
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:w-full sm:[&>button]:w-auto [&>button:nth-of-type(3)]:col-span-2">
+          // Expenses are logged in Quick log below; these are the other ways in.
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:w-full sm:[&>button]:w-auto">
             <FinanceEntryModal type="income" defaultDate={defaultEntryDate} />
-            <FinanceEntryModal type="expense" defaultDate={defaultEntryDate} />
             <BulkExpenseModal defaultDate={defaultEntryDate} />
           </div>
         }
@@ -225,17 +308,45 @@ export default async function FinancePage({
         <div className="space-y-4">
           <Card className="bg-yellow/40">
             <CardHeader className="mb-3" title="Quick log" description="Add an expense in one line." />
-            <QuickExpense defaultDate={defaultEntryDate} />
+            <QuickExpense defaultDate={defaultEntryDate} merchants={merchants} />
+            {latestEntries.length > 0 ? (
+              <div className="mt-3 border-t-2 border-ink/15 pt-3">
+                <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Latest in {monthLabel}</p>
+                  <a href="#transactions" className="text-[11px] font-bold uppercase tracking-wide text-blue hover:underline">
+                    All {monthEntries.length} ↓
+                  </a>
+                </div>
+                <ul className="space-y-1">
+                  {latestEntries.map((entry) => (
+                    <li key={entry.id} className="flex items-center gap-2 text-sm">
+                      <span className="w-12 shrink-0 text-xs font-bold text-muted">{formatDateShort(entry.date)}</span>
+                      <span className="min-w-0 flex-1 truncate font-semibold">{entry.source}</span>
+                      <span className={`shrink-0 font-bold ${entry.type === "income" ? "text-green" : "text-pink"}`}>
+                        {entry.type === "income" ? "+" : "−"}
+                        {formatEUR(entry.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </Card>
+          <Card>
+            <RecurringEntries month={selectedMonth} monthLabel={monthLabel} items={recurringItems} />
           </Card>
           <MonthPulse
+            month={selectedMonth}
             monthLabel={monthLabel}
             daily={daily}
             uptoDay={uptoDay}
             isCurrent={isCurrentMonth}
             income={income}
             expense={expense}
+            incomeTarget={incomeTarget}
           />
           <TrendBars months={trendMonths} selectedMonth={selectedMonth} />
+          <YearSummary year={year} months={yearMonths} selectedMonth={selectedMonth} />
         </div>
       </section>
 
@@ -249,7 +360,14 @@ export default async function FinancePage({
           description={`Where the money went in ${monthLabel}, and every entry.`}
         />
         <div className="space-y-4">
-          <ExpenseBreakdown monthLabel={monthLabel} total={expense} items={expenseByCategory} />
+          <ExpenseBreakdown
+            monthLabel={monthLabel}
+            total={expense}
+            items={expenseByCategory}
+            budgets={budgets}
+            activeCategory={activeCategory}
+            hrefFor={categoryHref}
+          />
           <div id="transactions" className="scroll-mt-48 md:scroll-mt-24">
           <Card>
             <CardHeader
@@ -257,9 +375,17 @@ export default async function FinancePage({
               description={
                 query
                   ? "Search results from every month."
-                  : activeTag
-                    ? `Expenses tagged #${activeTag} in ${monthLabel}.`
+                  : filtering
+                    ? `Expenses in ${monthLabel}${activeCategory ? ` under ${activeCategory}` : ""}${activeTag ? ` tagged #${activeTag}` : ""}.`
                     : `Income and expenses logged in ${monthLabel}.`
+              }
+              action={
+                <a
+                  href="/finance/export/transactions"
+                  className="text-[11px] font-bold uppercase tracking-wide text-blue hover:underline"
+                >
+                  Download CSV
+                </a>
               }
             />
             <Form action="/finance" scroll={false} className="mb-5 flex flex-wrap items-center gap-2">
@@ -271,9 +397,9 @@ export default async function FinancePage({
                 <Input
                   type="search"
                   name="q"
-                  aria-label="Search expenses"
+                  aria-label="Search all entries"
                   defaultValue={query}
-                  placeholder="Search all expenses: name, note, category or tag"
+                  placeholder="Search everything: name, note, category or tag"
                   className="pl-8"
                 />
               </div>
@@ -288,6 +414,21 @@ export default async function FinancePage({
                 </Link>
               ) : null}
             </Form>
+
+            {activeCategory ? (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted">Category</span>
+                <Link
+                  href={categoryHref(null)}
+                  scroll={false}
+                  className="brut-border flex items-center gap-1.5 rounded-full bg-yellow px-3 py-1.5 text-xs font-bold"
+                  aria-label={`Remove the ${activeCategory} filter`}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: categoryColor(activeCategory) }} />
+                  {activeCategory} <span aria-hidden>✕</span>
+                </Link>
+              </div>
+            ) : null}
 
             {!query && monthTags.length > 0 ? (
               <nav aria-label="Filter by tag" className="mb-5">
@@ -356,13 +497,17 @@ export default async function FinancePage({
                 <div className="brut-border mb-4 flex flex-wrap items-baseline justify-between gap-2 rounded-md bg-yellow/40 px-4 py-3">
                   <p className="text-sm font-bold">
                     {searchResults.length === 0
-                      ? `No expenses match “${query}”`
+                      ? `Nothing matches “${query}”`
                       : `${searchResults.length}${searchResults.length === SEARCH_LIMIT ? "+" : ""} ${
-                          searchResults.length === 1 ? "expense matches" : "expenses match"
+                          searchResults.length === 1 ? "entry matches" : "entries match"
                         } “${query}” across all months`}
                   </p>
                   {searchResults.length > 0 ? (
-                    <p className="font-display text-xl font-bold text-pink">{formatEUR(searchTotal)}</p>
+                    <p className="font-display text-xl font-bold">
+                      {searchExpenses.length > 0 ? <span className="text-pink">−{formatEUR(sumAmounts(searchExpenses))}</span> : null}
+                      {searchExpenses.length > 0 && searchIncome.length > 0 ? " · " : null}
+                      {searchIncome.length > 0 ? <span className="text-green">+{formatEUR(sumAmounts(searchIncome))}</span> : null}
+                    </p>
                   ) : null}
                 </div>
                 <div className="space-y-5">
@@ -372,7 +517,9 @@ export default async function FinancePage({
                         <Link href={financeHref(month)} className="font-display font-bold hover:text-blue hover:underline">
                           {formatMonthLabel(month)}
                         </Link>
-                        <span className="text-sm font-bold text-pink">{formatEUR(sumAmounts(rows))}</span>
+                        <span className="text-sm font-bold text-pink">
+                          {formatEUR(sumAmounts(rows.filter((row) => row.type === "expense")))}
+                        </span>
                       </div>
                       <div className="space-y-2">
                         {rows.map((entry) => (
@@ -394,7 +541,7 @@ export default async function FinancePage({
                 </div>
               </div>
             ) : (
-              <div className={activeTag ? "" : "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"}>
+              <div className={filtering ? "" : "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"}>
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3 border-b-2 border-ink pb-1">
                     <h4 className="text-xs font-bold uppercase tracking-[0.18em]">
@@ -404,7 +551,7 @@ export default async function FinancePage({
                     <span className="font-display font-bold">{formatEUR(shownTotal)}</span>
                   </div>
                   {shownExpenses.length === 0 ? (
-                    <EmptyState>No expenses logged for {monthLabel}.</EmptyState>
+                    <EmptyState>{filtering ? "No expenses match this filter." : `No expenses logged for ${monthLabel}.`}</EmptyState>
                   ) : (
                     <div className="space-y-4 lg:max-h-[640px] lg:overflow-y-auto lg:pr-1">
                       {expensesByDay.map(([day, rows]) => (
@@ -433,8 +580,8 @@ export default async function FinancePage({
                     </div>
                   )}
                 </div>
-                {/* Income has no tags, so it's hidden while a tag filter is on. */}
-                <div className={activeTag ? "hidden" : undefined}>
+                {/* Income has no tags or categories, so it's hidden while filtering. */}
+                <div className={filtering ? "hidden" : undefined}>
                   <div className="mb-3 flex items-center justify-between gap-3 border-b-2 border-ink pb-1">
                     <h4 className="text-xs font-bold uppercase tracking-[0.18em]">
                       <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-blue" />
@@ -475,7 +622,9 @@ export default async function FinancePage({
           color="orange"
           title="Wealth"
           description="Net worth, investment returns and how your portfolio is split."
+          action={<PrivacyToggle label="wealth amounts" />}
         />
+        <PrivacyScope>
         <Link
           href={wealthHref}
           className="brut-border brut-shadow group flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface p-4 transition-transform hover:-translate-y-0.5 sm:p-5"
@@ -483,11 +632,16 @@ export default async function FinancePage({
           <div className="flex flex-wrap gap-x-8 gap-y-2">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Net worth</p>
-              <p className="font-display text-3xl font-bold">
+              <p className="private-value font-display text-3xl font-bold">
                 {(netWorthCurrencies.length > 0 ? netWorthCurrencies : (["INR"] as const))
                   .map((c) => formatMoney(netWorth[c], c))
                   .join(" · ")}
               </p>
+              {eurToInr && netWorthCurrencies.length > 1 ? (
+                <p className="private-value text-xs font-bold text-muted">
+                  ≈ {formatMoney(netWorth.INR + netWorth.EUR * eurToInr, "INR")} all together
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Latest snapshot</p>
@@ -507,7 +661,7 @@ export default async function FinancePage({
                     year: "numeric",
                   })}
                 </p>
-                <p className="text-xs font-semibold text-muted">
+                <p className="private-value text-xs font-semibold text-muted">
                   {formatMoney(nextMaturity.summary.maturityValue, nextMaturity.currency)}
                   {nextMaturity.summary.status === "matured" ? " · renew or close" : ` · in ${nextMaturity.summary.daysLeft} days`}
                 </p>
@@ -518,6 +672,7 @@ export default async function FinancePage({
             See wealth →
           </span>
         </Link>
+        </PrivacyScope>
       </section>
     </div>
   );

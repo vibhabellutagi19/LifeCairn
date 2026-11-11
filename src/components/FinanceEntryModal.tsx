@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { Button, Input, Select } from "@/components/ui";
 import { createFinanceEntry } from "@/lib/actions/finance";
 import { EXPENSE_CATEGORIES } from "@/lib/financeCategories";
@@ -15,6 +15,7 @@ export function FinanceEntryModal({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const isExpense = type === "expense";
   const label = isExpense ? "expense" : "income";
 
@@ -71,7 +72,12 @@ export function FinanceEntryModal({
               const form = event.currentTarget;
               const formData = new FormData(form);
               startTransition(async () => {
-                await createFinanceEntry(formData);
+                const result = await createFinanceEntry(formData);
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                setError(null);
                 form.reset();
                 close();
               });
@@ -129,7 +135,7 @@ export function FinanceEntryModal({
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wide">
                   Tags <span className="normal-case text-muted">(optional, comma separated)</span>
                 </label>
-                <Input name="tags"  placeholder="e.g. goa-trip, work" />
+                <Input name="tags" placeholder="e.g. goa-trip, work" />
               </div>
             ) : null}
             <div>
@@ -138,6 +144,11 @@ export function FinanceEntryModal({
               </label>
               <Input id={`${titleId}-notes`} name="notes" placeholder="Add a short note" />
             </div>
+            {error ? (
+              <p role="alert" className="text-sm font-bold text-pink">
+                {error}
+              </p>
+            ) : null}
             <div className="grid grid-cols-2 gap-2 pt-2 sm:flex sm:justify-end">
               <Button type="button" variant="ghost" disabled={isPending} onClick={close}>
                 Cancel

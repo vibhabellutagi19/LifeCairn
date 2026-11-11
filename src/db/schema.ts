@@ -166,6 +166,36 @@ export const financeEntries = pgTable("finance_entries", {
   notes: text("notes"),
   // Free-form labels (e.g. a trip name) to total spending across months/categories.
   tags: text("tags").array().notNull().default([]),
+  // Set when the entry was added from a recurring item (finance_recurring), so
+  // the same item isn't offered twice in one month.
+  recurringId: integer("recurring_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Monthly spending limit per expense category; the same every month.
+export const financeBudgets = pgTable(
+  "finance_budgets",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+    category: varchar("category", { length: 100 }).notNull(),
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.category)]
+);
+
+// Regular income/expenses (rent, salary, subscriptions) that can be added for
+// the month in one tap. Each added entry points back here via recurring_id.
+export const financeRecurring = pgTable("finance_recurring", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(), // Clerk user id
+  type: financeEntryType("type").notNull(),
+  source: varchar("source", { length: 200 }).notNull(),
+  category: varchar("category", { length: 100 }).notNull().default("Other"),
+  amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+  tags: text("tags").array().notNull().default([]),
+  dayOfMonth: integer("day_of_month").notNull().default(1), // 1–28
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -351,6 +381,8 @@ export const userSettings = pgTable("user_settings", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id", { length: 64 }).notNull().unique(), // Clerk user id
   disabledModules: text("disabled_modules").array().notNull().default([]),
+  // Optional rate for showing INR + EUR savings as one total (₹ per €).
+  eurToInr: numeric("eur_to_inr", { precision: 10, scale: 4 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

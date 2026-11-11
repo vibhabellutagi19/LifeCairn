@@ -1,7 +1,8 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// The Telegram webhook authenticates with its own secret header, not Clerk.
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/api/telegram"]);
+// The Telegram webhook and the cron endpoints authenticate with their own
+// secret headers, not Clerk.
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/api/telegram", "/api/cron/(.*)"]);
 
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) await auth.protect();

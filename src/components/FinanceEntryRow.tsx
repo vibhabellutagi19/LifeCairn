@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { clsx } from "clsx";
 import { Button, Input, Select } from "@/components/ui";
 import { deleteFinanceEntry, updateFinanceEntry } from "@/lib/actions/finance";
@@ -27,6 +27,7 @@ export function FinanceEntryRow({
   notes: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const close = () => dialogRef.current?.close();
   const label = "mb-1 block text-xs font-bold uppercase tracking-wide";
@@ -103,7 +104,12 @@ export function FinanceEntryRow({
               event.preventDefault();
               const formData = new FormData(event.currentTarget);
               startTransition(async () => {
-                await updateFinanceEntry(id, formData);
+                const result = await updateFinanceEntry(id, formData);
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                setError(null);
                 close();
               });
             }}
@@ -146,6 +152,11 @@ export function FinanceEntryRow({
               <label className={label}>Notes</label>
               <Input name="notes" defaultValue={notes ?? ""} />
             </div>
+            {error ? (
+              <p role="alert" className="text-sm font-bold text-pink">
+                {error}
+              </p>
+            ) : null}
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" disabled={isPending} onClick={remove} className="mr-auto text-pink">
                 Delete

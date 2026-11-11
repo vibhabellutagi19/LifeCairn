@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
 import { PaceChart } from "@/components/PaceChart";
-import { PrivacyBlur } from "@/components/PrivacyBlur";
+import { FINANCE_PRIVACY_KEY, PrivacyBlur } from "@/components/PrivacyBlur";
 import { CardHeader } from "@/components/FinanceHeadings";
+import { IncomeTargetEditor } from "@/components/IncomeTargetEditor";
 import { CURRENCIES, formatEUR, formatMoney, type Currency } from "@/lib/format";
 
 function pct(part: number, whole: number) {
@@ -71,19 +72,24 @@ function verdictFor({
 }
 
 export function MonthPulse({
+  month,
   monthLabel,
   daily,
   uptoDay,
   isCurrent,
   income,
   expense,
+  incomeTarget,
 }: {
+  month: string;
   monthLabel: string;
   daily: number[];
   uptoDay: number;
   isCurrent: boolean;
   income: number;
   expense: number;
+  /** The month's income target, if one is set. */
+  incomeTarget: number | null;
 }) {
   const days = daily.length;
   const projected = uptoDay > 0 ? (expense / uptoDay) * days : 0;
@@ -135,6 +141,26 @@ export function MonthPulse({
               </div>
             ) : null}
           </dl>
+
+          <div className="mt-4">
+            {incomeTarget !== null ? (
+              <div className="mb-1.5">
+                <div className="flex items-baseline justify-between gap-2 text-[11px] font-bold uppercase tracking-wide">
+                  <span className="text-muted">Income target {formatEUR(incomeTarget)}</span>
+                  <span className={income >= incomeTarget ? "text-green" : "text-ink"}>
+                    {income >= incomeTarget ? "✓ reached" : `${Math.round(pct(income, incomeTarget))}%`}
+                  </span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-background" aria-hidden>
+                  <div
+                    className={`h-full rounded-full ${income >= incomeTarget ? "bg-green" : "bg-blue"}`}
+                    style={{ width: `${Math.min(100, pct(income, incomeTarget))}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
+            <IncomeTargetEditor month={month} target={incomeTarget} />
+          </div>
         </div>
 
         <div className="p-4 sm:p-5">
@@ -260,6 +286,113 @@ export function TrendBars({ months, selectedMonth }: { months: MonthTrend[]; sel
 }
 
 /* ------------------------------------------------------------------ */
+/* Year at a glance                                                    */
+/* ------------------------------------------------------------------ */
+
+export function YearSummary({
+  year,
+  months,
+  selectedMonth,
+}: {
+  year: string;
+  /** January to December of `year` (months with nothing logged have zeros). */
+  months: MonthTrend[];
+  selectedMonth: string;
+}) {
+  const active = months.filter((m) => m.income > 0 || m.expense > 0);
+  const income = months.reduce((sum, m) => sum + m.income, 0);
+  const expense = months.reduce((sum, m) => sum + m.expense, 0);
+  const kept = income - expense;
+  const withKept = active.map((m) => ({ ...m, kept: m.income - m.expense }));
+  const best = withKept.length > 0 ? withKept.reduce((a, b) => (b.kept > a.kept ? b : a)) : null;
+  const worst = withKept.length > 1 ? withKept.reduce((a, b) => (b.kept < a.kept ? b : a)) : null;
+  const maxAbs = Math.max(1, ...withKept.map((m) => Math.abs(m.kept)));
+
+  return (
+    <Card>
+      <CardHeader
+        title={`${year} so far`}
+        description="What you kept each month this year: above the line saved, below it overspent."
+      />
+      {active.length === 0 ? (
+        <p className="text-sm font-semibold text-muted">Nothing logged in {year} yet.</p>
+      ) : (
+        <>
+          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-md bg-background px-3 py-2">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">In</dt>
+              <dd className="font-display text-lg font-bold">{formatEUR(income)}</dd>
+            </div>
+            <div className="rounded-md bg-background px-3 py-2">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Out</dt>
+              <dd className="font-display text-lg font-bold">{formatEUR(expense)}</dd>
+            </div>
+            <div className="rounded-md bg-background px-3 py-2">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Kept</dt>
+              <dd className={`font-display text-lg font-bold ${kept < 0 ? "text-pink" : ""}`}>{formatEUR(kept)}</dd>
+            </div>
+            <div className="rounded-md bg-background px-3 py-2">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">Savings rate</dt>
+              <dd className="font-display text-lg font-bold">{income > 0 ? `${Math.round(pct(kept, income))}%` : "—"}</dd>
+            </div>
+          </dl>
+
+          {/* Kept per month: one baseline, bars up (saved) or down (overspent). */}
+          <div className="mt-4 grid grid-cols-12 gap-1" style={{ height: "7rem" }}>
+            {months.map((m) => {
+              const k = m.income - m.expense;
+              const has = m.income > 0 || m.expense > 0;
+              const h = has ? Math.max(3, (Math.abs(k) / maxAbs) * 50) : 0;
+              return (
+                <Link
+                  key={m.month}
+                  href={`/finance?month=${m.month}`}
+                  title={has ? `${m.label}: kept ${formatEUR(k)}` : `${m.label}: nothing logged`}
+                  aria-label={has ? `${m.label}: kept ${formatEUR(k)}` : `${m.label}: nothing logged`}
+                  className={`relative rounded-sm ${m.month === selectedMonth ? "bg-yellow/50" : "hover:bg-background"}`}
+                >
+                  <span className="absolute inset-x-0 top-1/2 h-0.5 bg-ink" aria-hidden />
+                  {has ? (
+                    <span
+                      aria-hidden
+                      className={`absolute inset-x-[15%] ${k >= 0 ? "bottom-1/2 rounded-t-[4px] bg-green" : "top-1/2 rounded-b-[4px] bg-pink"}`}
+                      style={{ height: `${h}%` }}
+                    />
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+          <div className="mt-1 grid grid-cols-12 gap-1">
+            {months.map((m) => (
+              <span
+                key={m.month}
+                className={`text-center text-[10px] font-bold uppercase ${m.month === selectedMonth ? "text-ink" : "text-muted"}`}
+              >
+                {m.label.slice(0, 1)}
+                <span className="hidden sm:inline">{m.label.slice(1, 3)}</span>
+              </span>
+            ))}
+          </div>
+
+          {best ? (
+            <p className="mt-3 text-sm font-semibold">
+              Best month: <b>{best.label}</b> (kept {formatEUR(best.kept)})
+              {worst && worst.month !== best.month ? (
+                <>
+                  {" "}
+                  · toughest: <b>{worst.label}</b> ({worst.kept >= 0 ? "kept" : "overspent"} {formatEUR(Math.abs(worst.kept))})
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Net worth: savings per currency, by type, and growth                */
 /* ------------------------------------------------------------------ */
 
@@ -276,63 +409,40 @@ const TYPE_LABEL: Record<string, string> = {
 export type NetWorthAccount = { name: string; type: string; balance: number; currency: string };
 export type NetWorthPoint = { month: string; value: number };
 
-function Sparkline({ points, currency }: { points: NetWorthPoint[]; currency: Currency }) {
-  if (points.length < 2) return null;
-  const w = 160;
-  const h = 40;
-  const values = points.map((p) => p.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const coords = points.map((p, i) => ({
-    ...p,
-    x: 4 + (i / (points.length - 1)) * (w - 8),
-    y: 4 + (1 - (p.value - min) / span) * (h - 8),
-  }));
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="private-value h-10 w-40" role="img" aria-label={`${currency} savings over snapshots`}>
-      <polyline
-        points={coords.map((c) => `${c.x},${c.y}`).join(" ")}
-        fill="none"
-        stroke="var(--ink)"
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {coords.map((c, i) => (
-        <circle
-          key={c.month}
-          cx={c.x}
-          cy={c.y}
-          r={i === coords.length - 1 ? 4 : 2.5}
-          fill={i === coords.length - 1 ? "var(--orange)" : "var(--ink)"}
-          stroke="var(--surface)"
-          strokeWidth={1.5}
-        >
-          <title>{`${c.month}: ${formatMoney(c.value, currency)}`}</title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
-
 export function NetWorth({
   accounts,
   history,
+  eurToInr,
+  rateEditor,
 }: {
   accounts: NetWorthAccount[];
   history: Record<Currency, NetWorthPoint[]>;
+  /** ₹ per €, when set: shows INR and EUR as one total too. */
+  eurToInr: number | null;
+  /** The form to set that rate (a client component). */
+  rateEditor?: React.ReactNode;
 }) {
   const currencies = CURRENCIES.filter((c) => accounts.some((a) => a.currency === c));
+  const totalOf = (currency: Currency) =>
+    accounts.filter((a) => a.currency === currency).reduce((sum, a) => sum + a.balance, 0);
+  const combined = eurToInr && currencies.length > 1 ? totalOf("INR") + totalOf("EUR") * eurToInr : null;
 
   return (
     <Card className="flex flex-col">
       <PrivacyBlur
-        storageKey="lifecairn:finance:networth-hidden"
+        storageKey={FINANCE_PRIVACY_KEY}
         label="net worth amounts"
         title="Net worth"
         description="Everything you’ve saved, including emergency funds, by currency."
       >
+
+        {combined !== null ? (
+          <div className="mb-3 rounded-md bg-ink px-3 py-2 text-surface">
+            <p className="text-[11px] font-bold uppercase tracking-wide opacity-80">All together, in ₹</p>
+            <p className="private-value font-display text-3xl font-bold">{formatMoney(combined, "INR")}</p>
+            <p className="text-[11px] font-semibold opacity-80">At €1 = ₹{eurToInr}</p>
+          </div>
+        ) : null}
 
         {currencies.length === 0 ? (
           <p className="text-sm font-semibold text-muted">Add a saving in the Savings section to see it here.</p>
@@ -367,7 +477,6 @@ export function NetWorth({
                         <p className="text-xs font-semibold text-muted">Save two snapshots to see growth</p>
                       )}
                     </div>
-                    <Sparkline points={points} currency={currency} />
                   </div>
                   <ul className="mt-3 space-y-1.5">
                     {byType.map(({ type, value }) => (
@@ -388,6 +497,7 @@ export function NetWorth({
             })}
           </div>
         )}
+        {rateEditor ? <div className="mt-3">{rateEditor}</div> : null}
       </PrivacyBlur>
     </Card>
   );
