@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { financeSnapshots, telegramLinks } from "@/db/schema";
@@ -6,6 +5,7 @@ import { getDisabledModules } from "@/lib/moduleSettings";
 import { currentMonthKey } from "@/lib/dates";
 import { formatMonthLabel } from "@/lib/financeView";
 import { esc, sendMessage } from "@/lib/telegram/api";
+import { validCronSecret } from "@/lib/cronAuth";
 
 // Month-end nudge: everyone with a linked Telegram chat and Finance switched on
 // who hasn't saved this month's savings snapshot gets one message. Called by a
@@ -14,16 +14,8 @@ import { esc, sendMessage } from "@/lib/telegram/api";
 
 export const dynamic = "force-dynamic";
 
-function validSecret(header: string | null) {
-  const secret = process.env.CRON_SECRET ?? "";
-  if (!secret || !header) return false;
-  const a = Buffer.from(header);
-  const b = Buffer.from(secret);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
-  if (!validSecret(request.headers.get("x-cron-secret"))) {
+  if (!validCronSecret(request)) {
     return new Response("Forbidden", { status: 403 });
   }
   const month = currentMonthKey();

@@ -23,6 +23,7 @@ import type { HistoryImportPayload } from "@/lib/snapshotImport";
 function revalidateAll() {
   revalidatePath("/finance");
   revalidatePath("/finance/wealth");
+  revalidatePath("/finance/reports");
   revalidatePath("/");
   revalidatePath("/review");
 }

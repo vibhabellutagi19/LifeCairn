@@ -65,7 +65,7 @@ export function Sidebar({ disabledModules }: { disabledModules: ModuleKey[] }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between border-b-3 border-ink bg-surface px-4 py-2 md:hidden">
+      <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between border-b-3 border-ink bg-surface px-4 py-2 md:hidden print:hidden">
         <Link href="/" className="flex min-w-0 items-center gap-2.5" onClick={() => setMobileOpen(false)}>
           <Logo className="h-8 w-8 shrink-0" />
           <span className="min-w-0">
@@ -131,7 +131,7 @@ export function Sidebar({ disabledModules }: { disabledModules: ModuleKey[] }) {
 
       <aside
         className={clsx(
-          "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r-3 border-ink bg-surface transition-[width] duration-200 md:flex",
+          "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r-3 border-ink bg-surface transition-[width] duration-200 md:flex print:hidden",
           collapsed ? "w-[76px]" : "w-64"
         )}
       >

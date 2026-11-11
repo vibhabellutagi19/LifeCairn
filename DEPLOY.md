@@ -342,16 +342,20 @@ Lets each user log expenses and income, tick habits and change project task stat
 
 Telegram sends the secret in the `X-Telegram-Bot-Api-Secret-Token` header; `/api/telegram` rejects any request without it. Dates use the server's clock, so set the container's `TZ` if "today" should follow your time zone.
 
-## Month-end snapshot reminder (optional)
+## Telegram reminders and monthly digest (optional)
 
-Anyone with a linked Telegram chat who hasn't saved this month's savings snapshot gets one message ("📸 No savings snapshot for November yet").
+Two scheduled Telegram messages, for everyone with a linked chat and Finance switched on:
+
+- **Snapshot reminder** (25th and 28th): only if this month's savings snapshot isn't saved yet.
+- **Monthly digest** (1st): last month in review (kept, savings rate, biggest change, budgets, no-spend days) with a link to the full report. Skipped for anyone who logged nothing that month.
 
 1. Set `CRON_SECRET` in `deploy/ec2.env` to a long random string (`openssl rand -hex 32`), then recreate the app: `sudo docker compose --env-file deploy/ec2.env -f deploy/compose.yaml up -d --no-build app`.
-2. Add a cron job on the instance (`crontab -e`) that calls it at 09:00 on the 25th and the 28th of each month:
+2. Add the cron jobs on the instance (`crontab -e`), times in the server's time zone (UTC):
 
 ```cron
 0 9 25,28 * * . /home/ubuntu/lifecairn/deploy/ec2.env && curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" http://127.0.0.1:3000/api/cron/snapshot-reminder >/dev/null
+0 8 1 * *     . /home/ubuntu/lifecairn/deploy/ec2.env && curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" http://127.0.0.1:3000/api/cron/monthly-digest >/dev/null
 ```
 
-The endpoint refuses every call when `CRON_SECRET` is empty. Run the `curl` part by hand to test it; it answers with `{"month":"…","sent":N}`.
+The endpoints refuse every call when `CRON_SECRET` is empty. Run the `curl` part by hand to test it; it answers with `{"month":"…","sent":N}`.
 

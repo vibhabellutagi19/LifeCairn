@@ -270,6 +270,12 @@ export default async function FinancePage({
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:w-full sm:[&>button]:w-auto">
             <FinanceEntryModal type="income" defaultDate={defaultEntryDate} />
             <BulkExpenseModal defaultDate={defaultEntryDate} />
+            <Link
+              href={`/finance/reports?${new URLSearchParams({ p: "month", at: selectedMonth })}`}
+              className="brut-border brut-shadow-sm col-span-2 flex min-h-11 items-center justify-center rounded-md bg-yellow px-4 font-display text-sm font-bold sm:col-span-1"
+            >
+              {selectedMonth === monthKey ? "Reports" : `${monthLabel} report`} →
+            </Link>
           </div>
         }
       />

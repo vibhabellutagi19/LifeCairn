@@ -2812,3 +2812,27 @@ textarea {
     transition: none;
   }
 }
+
+/* Printing (reports → "Save as PDF"): keep colours, drop app chrome and shadows. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html {
+    font-size: 75%;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .brut-shadow,
+  .brut-shadow-sm {
+    box-shadow: none !important;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+}
